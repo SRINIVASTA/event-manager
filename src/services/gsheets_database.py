@@ -25,23 +25,25 @@ class GSheetsDatabase:
     def get_or_create_worksheet(company, date_str, time_str, event_type):
         config = SystemConfig.validate_and_load()
         client = GSheetsDatabase._get_client(config)
-        spreadsheet_name = f"Event_Records_{company}"
         
+        # 🚀 FORCE EXACT CASE CONSISTENCY
+        spreadsheet_name = f"Event_Records_{company}"
         safe_time = time_str.replace(':', '-')
         tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
 
         try:
-            # 🚀 Open the sheet you created and shared with the service account
+            # Look for the file inside the system records matrix
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
-                raise DatabaseError(
-                    f"Spreadsheet '{spreadsheet_name}' not found! "
-                    f"Please create a blank sheet named '{spreadsheet_name}' in your Google Drive "
-                    f"and share it with: {config['gcp_service_account']['client_email']} as Editor."
-                )
+                # 🚀 AUTOMATIC INCEPTION: Let the service account create it cleanly 
+                # inside its native database space context without ownership changes
+                spreadsheet = client.create(spreadsheet_name)
+                
+                # Instantly grant your personal account access so it pops up in your Drive dashboard
+                spreadsheet.share(config["host_email"], perm_type='user', role='writer')
 
-            # Automatically manage program tabs inside your master document
+            # Programmatically provision and structure individual tabs
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
@@ -49,6 +51,18 @@ class GSheetsDatabase:
                 worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
             
             return worksheet
+        except gspread.exceptions.APIError as api_err:
+            # Handle standard consumer quota edge cases dynamically
+            error_data = api_err.response.json() if hasattr(api_err, 'response') else {}
+            error_msg = error_data.get('error', {}).get('message', str(api_err))
+            
+            if "storage quota" in error_msg.lower():
+                raise DatabaseError(
+                    "Google account storage limitation encountered. "
+                    "Please log into your Google Drive, click 'Storage' on the left menu, "
+                    "and empty your trash bin folder to free up space parameters."
+                )
+            raise DatabaseError(f"Google Cloud storage engine reported a fault: {error_msg}")
         except Exception as e:
             raise DatabaseError(f"Failed to query or create cloud datatable layouts: {str(e)}")
 
