@@ -4,15 +4,15 @@ from src.core.exceptions import ConfigurationError
 class SystemConfig:
     @staticmethod
     def validate_and_load():
-        """Ensures all required enterprise credentials live inside the cloud backend environment."""
+        """Loads variable parameters from secrets while hardcoding constant Gmail network endpoints."""
         try:
             return {
                 "host_email": st.secrets["host_email"],
                 "gmail": {
-                    "smtp_host": st.secrets["gmail"]["smtp_host"],
-                    "smtp_port": int(st.secrets["gmail"]["smtp_port"]),
-                    "imap_host": st.secrets["gmail"]["imap_host"],
-                    "imap_port": int(st.secrets["gmail"]["imap_port"]),
+                    "smtp_host": "smtp.gmail.com",
+                    "smtp_port": 587,
+                    "imap_host": "imap.gmail.com",
+                    "imap_port": 993,
                     "username": st.secrets["gmail"]["username"],
                     "app_password": st.secrets["gmail"]["app_password"]
                 },
@@ -20,6 +20,6 @@ class SystemConfig:
             }
         except KeyError as e:
             raise ConfigurationError(
-                f"Missing critical production secret field key mapping: {str(e)}. "
-                "Ensure your Streamlit Cloud Advanced Settings panel parameters are correctly configured."
+                f"Missing critical production secret field: {str(e)}. "
+                "Verify your Streamlit Cloud Secrets dashboard panel configuration."
             )
