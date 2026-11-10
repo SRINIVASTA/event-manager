@@ -7,7 +7,6 @@ class GSheetsDatabase:
     @staticmethod
     def _get_client(config):
         try:
-            # Reconstruct the exact dictionary keys required by Google Cloud IAM
             service_account_info = {
                 "type": "service_account",
                 "project_id": config["gcp_service_account"]["project_id"],
@@ -18,11 +17,7 @@ class GSheetsDatabase:
                 "token_uri": config["gcp_service_account"]["token_uri"],
                 "auth_provider_x509_cert_url": config["gcp_service_account"]["auth_provider_x509_cert_url"]
             }
-            
-            # 🚀 ULTIMATE FIX: Let gspread natively handle default scopes under the hood.
-            # This completely avoids the internal array token string generation bug.
             return gspread.service_account_from_dict(service_account_info)
-            
         except Exception as e:
             raise DatabaseError(f"Authentication with Google Cloud APIs broken: {str(e)}")
 
@@ -39,9 +34,16 @@ class GSheetsDatabase:
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
+                # 🚀 FIX: Create the sheet and instantly transfer full ownership to your personal account
                 spreadsheet = client.create(spreadsheet_name)
-                # Automatically grant editor access to your centralized account email
+                
+                # Share as writer first, then transfer ownership to bypass service account storage quota limits
                 spreadsheet.share(config["host_email"], perm_type='user', role='writer')
+                try:
+                    spreadsheet.share(config["host_email"], perm_type='user', role='owner', transfer_ownership=True)
+                except Exception:
+                    # Fallback if specific domain rules prevent direct programmatic owner transfer
+                    pass
 
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
