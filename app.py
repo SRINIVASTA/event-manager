@@ -9,6 +9,7 @@ from src.services.gmail_dispatcher import GmailDispatcher
 from src.services.gmail_listener import GmailListener
 from src.core.exceptions import EventManagerException
 
+# Validate secrets and configuration on startup
 try:
     SystemConfig.validate_and_load()
 except EventManagerException as e:
@@ -31,10 +32,11 @@ TIMEZONE_OPTIONS = {
 st.title("✉️ Uttaram — Enterprise Event Communications Engine")
 st.markdown("Automate Uttaram-style templates, secure dynamic attachments, and synchronize tracking lists live to Google Sheets via Gmail APIs.")
 
+# Global Region / Timezone Selector
 selected_tz_label = st.selectbox(
     "🌍 Select Active Region / Timezone (applies to invites, calendar files & sheet logs):",
     options=list(TIMEZONE_OPTIONS.keys()),
-    index=0
+    index=0  # Defaults to India (IST - Asia/Kolkata)
 )
 active_tz = TIMEZONE_OPTIONS[selected_tz_label]
 current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
@@ -42,6 +44,7 @@ st.caption(f"Current local time in selected region: **{current_local_now.strftim
 
 tab_dispatch, tab_analytics = st.tabs(["🆕 Launch Campaign Portal", "📊 Cloud Database Roster Tracker"])
 
+# --- TAB 1: LAUNCH CAMPAIGN ---
 with tab_dispatch:
     st.subheader("Initialise Program Communications Configuration Parameters")
     
@@ -65,9 +68,14 @@ with tab_dispatch:
             raw_tokens = receivers_input.replace("\n", ",").split(",")
             clean_recipients = [r.strip() for r in raw_tokens if "@" in r]
 
+            if not clean_recipients:
+                st.error("No valid email addresses containing '@' were found.")
+                st.stop()
+
             d_str = event_date.strftime("%Y-%m-%d")
             t_str = event_time.strftime("%H:%M")
 
+            # Ensure event tab exists in Google Sheets
             GSheetsDatabase.get_or_create_worksheet(company, d_str, t_str, event_type)
 
             ui_progress = st.progress(0)
@@ -94,24 +102,10 @@ with tab_dispatch:
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
 
+# --- TAB 2: ONE-CLICK SYNC & ROSTER TRACKER ---
 with tab_analytics:
-    st.subheader("Google Sheets Synchronization Controls Hub")
-    
-    if st.button("🔄 Sync Inbound RSVP Responses From Inbox Now"):
-        with st.spinner("Connecting to Gmail secure messaging IMAP server loops configuration framework..."):
-            try:
-                logs = GmailListener.poll_and_sync_rsvps(default_tz=active_tz)
-                if logs:
-                    for log_entry in logs:
-                        st.toast(log_entry, icon="✅")
-                    st.success(f"Synchronisation complete! Synced {len(logs)} participant status adjustments.")
-                else:
-                    st.info("No email RSVP confirmations detected in the system inbox at this time.")
-            except EventManagerException as error:
-                st.error(f"Sync operation failure message parameters: {str(error)}")
-
-    st.divider()
-    st.markdown("### Inspect Cloud Document Workspace Tab Visualiser Dataframes")
+    st.subheader("Google Sheets Synchronization & Roster Visualiser")
+    st.markdown("Enter your event parameters below and click **Sync & Pull Roster** to automatically fetch new Gmail RSVP replies and view live attendance.")
     
     c1, c2, c3, c4 = st.columns(4)
     sc = c1.text_input("Filter Company Name Key:", value="infosys")
@@ -119,22 +113,33 @@ with tab_analytics:
     st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
     sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
 
-    if st.button("🔍 Pull Roster Sheet Data Matrix"):
-        try:
-            worksheet = GSheetsDatabase.get_or_create_worksheet(sc, sd, st_t, sty)
-            raw_matrix = worksheet.get_all_records()
-            
-            if raw_matrix:
-                dataframe = pd.DataFrame(raw_matrix)
-                st.dataframe(dataframe, use_container_width=True)
+    if st.button("🔄 Sync Inbox & Pull Roster Sheet Data Matrix"):
+        with st.spinner("Syncing latest email RSVPs from Gmail & loading Google Sheet..."):
+            try:
+                # Step 1: Automatically sync all inbound RSVP emails first
+                logs = GmailListener.poll_and_sync_rsvps(default_tz=active_tz)
+                if logs:
+                    for log_entry in logs:
+                        st.toast(log_entry, icon="✅")
+                    st.success(f"Inbox synced! Processed {len(logs)} RSVP response(s).")
+
+                # Step 2: Pull and display the updated Google Sheet tab immediately
+                worksheet = GSheetsDatabase.get_or_create_worksheet(sc, sd, st_t, sty)
+                raw_matrix = worksheet.get_all_records()
                 
-                total_accepted = len(dataframe[dataframe['RSVP_Status'] == 'ACCEPTED'])
-                total_pending = len(dataframe[dataframe['RSVP_Status'] == 'PENDING'])
-                
-                metric_col1, metric_col2 = st.columns(2)
-                metric_col1.metric("Confirmed Accepted Attendees count", total_accepted)
-                metric_col2.metric("Remaining Pending responses tracker status", total_pending)
-            else:
-                st.warning("Spreadsheet schema database tab mapped accurately, but row elements data is currently empty.")
-        except EventManagerException as error:
-            st.error(f"Failed to extract matching target cloud documents view parameters structure: {str(error)}")
+                if raw_matrix:
+                    dataframe = pd.DataFrame(raw_matrix)
+                    st.dataframe(dataframe, use_container_width=True)
+                    
+                    total_accepted = len(dataframe[dataframe['RSVP_Status'] == 'ACCEPTED'])
+                    total_pending = len(dataframe[dataframe['RSVP_Status'] == 'PENDING'])
+                    total_declined = len(dataframe[dataframe['RSVP_Status'] == 'DECLINED'])
+                    
+                    metric_col1, metric_col2, metric_col3 = st.columns(3)
+                    metric_col1.metric("Confirmed Accepted", total_accepted)
+                    metric_col2.metric("Pending Responses", total_pending)
+                    metric_col3.metric("Declined", total_declined)
+                else:
+                    st.warning("Spreadsheet schema database tab mapped accurately, but row elements data is currently empty.")
+            except EventManagerException as error:
+                st.error(f"Failed to sync or extract target cloud documents view parameters structure: {str(error)}")
