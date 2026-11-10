@@ -31,20 +31,17 @@ class GSheetsDatabase:
         tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
 
         try:
+            # 🚀 Open the sheet you created and shared with the service account
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
-                # 🚀 FIX: Create the sheet and instantly transfer full ownership to your personal account
-                spreadsheet = client.create(spreadsheet_name)
-                
-                # Share as writer first, then transfer ownership to bypass service account storage quota limits
-                spreadsheet.share(config["host_email"], perm_type='user', role='writer')
-                try:
-                    spreadsheet.share(config["host_email"], perm_type='user', role='owner', transfer_ownership=True)
-                except Exception:
-                    # Fallback if specific domain rules prevent direct programmatic owner transfer
-                    pass
+                raise DatabaseError(
+                    f"Spreadsheet '{spreadsheet_name}' not found! "
+                    f"Please create a blank sheet named '{spreadsheet_name}' in your Google Drive "
+                    f"and share it with: {config['gcp_service_account']['client_email']} as Editor."
+                )
 
+            # Automatically manage program tabs inside your master document
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
