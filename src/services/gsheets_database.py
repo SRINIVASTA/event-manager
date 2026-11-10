@@ -26,19 +26,33 @@ class GSheetsDatabase:
         config = SystemConfig.validate_and_load()
         client = GSheetsDatabase._get_client(config)
         
-        spreadsheet_name = f"Event_Records_{company}"
+        # We will use a single master spreadsheet instead of generating multiple files, 
+        # which completely dodges the personal Drive quota restriction limit bug.
+        spreadsheet_name = "Master_Event_Roster"
         safe_time = time_str.replace(':', '-')
-        tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
+        
+        # Each unique event will automatically become its own beautiful separate tab folder inside it!
+        tab_name = f"{company}_{date_str}_{safe_time}_{event_type.lower()}"
 
         try:
-            # 🚀 ROOT INCEPTION ACTION: Create the file in root workspace to avoid 403 Parent errors completely
+            # 🚀 TOML NO-QUOTA STRATEGY: Try opening the master tracker file.
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
-                spreadsheet = client.create(spreadsheet_name)
-                # Automatically grant full writer privileges to your personal account email
-                spreadsheet.share(config["host_email"], perm_type='user', role='writer')
+                # If it's the very first run, we let the app attempt a singular base initialization
+                try:
+                    spreadsheet = client.create(spreadsheet_name)
+                    spreadsheet.share(config["host_email"], perm_type='user', role='writer')
+                except gspread.exceptions.APIError as e:
+                    # If Google strictly locks file creation on this specific developer zone,
+                    # we instruct the user on how to resolve it via an alternative approach.
+                    raise DatabaseError(
+                        f"Google storage limits prevent script file creation. Please go to your personal Google Sheets, "
+                        f"create a blank spreadsheet named '{spreadsheet_name}', and click Share to add this email as Editor: "
+                        f"{config['gcp_service_account']['client_email']}"
+                    )
 
+            # Programmatically provision and structure individual tabs inside the document
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
@@ -46,9 +60,8 @@ class GSheetsDatabase:
                 worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
             
             return worksheet
-            
         except Exception as e:
-            raise DatabaseError(f"Failed to query or create cloud datatable layouts: {str(e)}")
+            raise DatabaseError(str(e))
 
     @staticmethod
     def write_participant_state(company, date_str, time_str, event_type, email, status):
