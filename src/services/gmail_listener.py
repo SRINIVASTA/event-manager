@@ -29,26 +29,27 @@ class GmailListener:
             mail.login(config["gmail"]["username"], config["gmail"]["app_password"])
             mail.select("inbox")
 
-            status, response = mail.search(None, '(UNSEEN SUBJECT "RSVP ")')
-            if status == 'OK' and response and response[0]:
-                for num in response[0].split():
+            # Scans all RSVP messages (even if you already opened/read them in Gmail)
+            status, response = mail.search(None, '(SUBJECT "RSVP ")')
+            if status == 'OK' and response and response:
+                for num in response.split():
                     status, data = mail.fetch(num, '(RFC822)')
-                    if status != 'OK' or not data or not data[0]:
+                    if status != 'OK' or not data or not data:
                         continue
                     
-                    msg = email.message_from_bytes(data[0][1])
+                    msg = email.message_from_bytes(data)
                     subject = GmailListener._decode_subject(msg['Subject'])
-                    sender_raw = email.utils.parseaddr(msg['From'])[1]
+                    sender_raw = email.utils.parseaddr(msg['From'])
 
                     if "RSVP " in subject and "|" in subject:
                         parts = [p.strip() for p in subject.split('|')]
                         if len(parts) >= 5:
-                            action = "ACCEPTED" if "ACCEPT" in parts[0].upper() else "DECLINED"
-                            company = parts[1]
-                            date_str = parts[2]
-                            time_str = parts[3]
-                            event_type = parts[4]
-                            tz_name = parts[5] if len(parts) >= 6 else default_tz
+                            action = "ACCEPTED" if "ACCEPT" in parts.upper() else "DECLINED"
+                            company = parts
+                            date_str = parts
+                            time_str = parts
+                            event_type = parts
+                            tz_name = parts if len(parts) >= 6 else default_tz
 
                             GSheetsDatabase.write_participant_state(
                                 company, date_str, time_str, event_type, sender_raw, action, tz_name=tz_name
