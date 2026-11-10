@@ -8,8 +8,24 @@ class GSheetsDatabase:
     @staticmethod
     def _get_client(config):
         try:
-            scopes = ["https://googleapis.com", "https://googleapis.com"]
-            creds = Credentials.from_service_account_info(config["gcp_service_account"], scopes=scopes)
+            # 🚀 FIXED SCOPES: Completely isolated array format strings without inner commas
+            scopes = [
+                "https://googleapis.com",
+                "https://googleapis.com"
+            ]
+            
+            service_account_info = {
+                "type": "service_account",
+                "project_id": config["gcp_service_account"]["project_id"],
+                "private_key_id": config["gcp_service_account"]["private_key_id"],
+                "private_key": config["gcp_service_account"]["private_key"],
+                "client_email": config["gcp_service_account"]["client_email"],
+                "auth_uri": config["gcp_service_account"]["auth_uri"],
+                "token_uri": config["gcp_service_account"]["token_uri"],
+                "auth_provider_x509_cert_url": config["gcp_service_account"]["auth_provider_x509_cert_url"]
+            }
+            
+            creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
             return gspread.authorize(creds)
         except Exception as e:
             raise DatabaseError(f"Authentication with Google Cloud APIs broken: {str(e)}")
@@ -19,7 +35,9 @@ class GSheetsDatabase:
         config = SystemConfig.validate_and_load()
         client = GSheetsDatabase._get_client(config)
         spreadsheet_name = f"Event_Records_{company}"
-        tab_name = f"{date_str}_{time_str.replace(':', '-')}_{event_type.lower()}"
+        
+        safe_time = time_str.replace(':', '-')
+        tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
 
         try:
             try:
