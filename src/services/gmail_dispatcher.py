@@ -20,12 +20,10 @@ class GmailDispatcher:
             msg['From'] = f'"Programmes Portal" <{sender}>'
             msg['To'] = to_email
 
-            # Format structural mailto loops
             metadata = f"| {company} | {date_str} | {time_str} | {event_type}"
             accept_url = f"mailto:{sender}?subject=RSVP ACCEPT {metadata}&body=Send to confirm attendance."
             decline_url = f"mailto:{sender}?subject=RSVP DECLINE {metadata}&body=Send to decline invitation."
 
-            # Inject template path context
             template_path = os.path.join(os.path.dirname(__file__), '../templates/invite_template.html')
             with open(template_path, 'r') as file:
                 html_body = file.read()
@@ -39,7 +37,7 @@ class GmailDispatcher:
             
             msg.attach(MIMEText(html_body, 'html'))
 
-            # Attach auto-generated .ics calendar invite payload structural frameworks
+            # Generate .ics attachment
             c = Calendar()
             e = Event(name=f"{company} Programme ({event_type})", begin=f"{date_str} {time_str}:00")
             c.events.add(e)
@@ -50,7 +48,6 @@ class GmailDispatcher:
             cal_part.add_header('Content-Disposition', 'attachment; filename="invite.ics"')
             msg.attach(cal_part)
 
-            # Process custom attached assets from form layouts smoothly
             if uploaded_files:
                 for f in uploaded_files:
                     file_part = MIMEBase('application', 'octet-stream')
@@ -60,10 +57,10 @@ class GmailDispatcher:
                     msg.attach(file_part)
                     f.seek(0)
 
-            # Execution block mapping over safe ports
+            # Connects directly using the hardcoded configuration properties
             with smtplib.SMTP(config["gmail"]["smtp_host"], config["gmail"]["smtp_port"]) as server:
                 server.starttls()
                 server.login(sender, config["gmail"]["app_password"])
                 server.sendmail(sender, to_email, msg.as_string())
         except Exception as e:
-            raise CommunicationError(f"SMTP delivery infrastructure malfunction code: {str(e)}")
+            raise CommunicationError(f"SMTP delivery infrastructure malfunction: {str(e)}")
