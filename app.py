@@ -9,6 +9,14 @@ from src.services.gmail_dispatcher import GmailDispatcher
 from src.services.gmail_listener import GmailListener
 from src.core.exceptions import EventManagerException
 
+# Page Configuration (must be the first Streamlit command)
+st.set_page_config(
+    page_title="Uttaram — Event Communications Engine",
+    page_icon="✉️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Validate secrets and configuration on startup
 try:
     SystemConfig.validate_and_load()
@@ -29,37 +37,62 @@ TIMEZONE_OPTIONS = {
     "UTC (Universal Coordinated Time)": "UTC"
 }
 
+# --- SIDEBAR: BRANDING, NAVIGATION & TIMEZONE CONTROLS ---
+with st.sidebar:
+    st.title("✉️ Uttaram")
+    st.caption("Enterprise Event Communications Engine")
+    st.divider()
+
+    # Navigation Menu
+    selected_page = st.radio(
+        "🧭 Workspace Navigation",
+        options=["🆕 Launch Campaign Portal", "📊 Cloud Database Roster Tracker"],
+        index=0
+    )
+
+    st.divider()
+
+    # Global Region / Timezone Selector
+    selected_tz_label = st.selectbox(
+        "🌍 Active Region / Timezone",
+        options=list(TIMEZONE_OPTIONS.keys()),
+        index=0  # Defaults to India (IST - Asia/Kolkata)
+    )
+    active_tz = TIMEZONE_OPTIONS[selected_tz_label]
+    current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
+
+    st.info(f"🕒 **Local Time:**\n\n`{current_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')}`")
+    st.divider()
+    st.caption("Powered by Uttaram Event Engine")
+
+# --- MAIN WORKSPACE AREA ---
 st.title("✉️ Uttaram — Enterprise Event Communications Engine")
 st.markdown("Automate Uttaram-style templates, secure dynamic attachments, and synchronize tracking lists live to Google Sheets via Gmail APIs.")
+st.divider()
 
-# Global Region / Timezone Selector
-selected_tz_label = st.selectbox(
-    "🌍 Select Active Region / Timezone (applies to invites, calendar files & sheet logs):",
-    options=list(TIMEZONE_OPTIONS.keys()),
-    index=0  # Defaults to India (IST - Asia/Kolkata)
-)
-active_tz = TIMEZONE_OPTIONS[selected_tz_label]
-current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
-st.caption(f"Current local time in selected region: **{current_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')}**")
-
-tab_dispatch, tab_analytics = st.tabs(["🆕 Launch Campaign Portal", "📊 Cloud Database Roster Tracker"])
-
-# --- TAB 1: LAUNCH CAMPAIGN ---
-with tab_dispatch:
-    st.subheader("Initialise Program Communications Configuration Parameters")
+# --- PAGE 1: LAUNCH CAMPAIGN PORTAL ---
+if selected_page == "🆕 Launch Campaign Portal":
+    st.subheader("🆕 Initialise Program Communications Configuration")
     
     col_left, col_right = st.columns(2)
     with col_left:
-        company = st.text_input("Target Corporate/Program entity Name:", placeholder="e.g., Infosys")
+        company = st.text_input("Target Corporate/Program Entity Name:", placeholder="e.g., Infosys")
         event_date = st.date_input("Target Execution Date Frame:", value=current_local_now.date())
         event_time = st.time_input("Target Execution Timestamp Layout:", value=datetime.time(14, 30))
     with col_right:
-        event_type = st.selectbox("Select Access Medium Format Typer Matrix:", ["Virtual", "Walk-in"])
-        receivers_input = st.text_area("Input Intended Recipient Email List Strings (separate items by commas or separate lines):")
+        event_type = st.selectbox("Select Access Medium Format:", ["Virtual", "Walk-in"])
+        receivers_input = st.text_area(
+            "Input Intended Recipient Email List (separate by commas or new lines):",
+            height=130,
+            placeholder="candidate1@gmail.com, candidate2@gmail.com"
+        )
 
-    uploaded_files = st.file_uploader("Upload additional supporting text assets/materials documents directly", accept_multiple_files=True)
+    uploaded_files = st.file_uploader(
+        "Upload additional supporting materials/documents (Optional)",
+        accept_multiple_files=True
+    )
 
-    if st.button("🚀 Authorise Workspace & Send Invitations"):
+    if st.button("🚀 Authorise Workspace & Send Invitations", type="primary"):
         if not company or not receivers_input:
             st.error("Please fill in both the Company Name and provide valid Recipient Email inputs.")
             st.stop()
@@ -82,7 +115,7 @@ with tab_dispatch:
             ui_status = st.empty()
 
             for index, recipient in enumerate(clean_recipients):
-                ui_status.text(f"Processing structural registration pipeline state allocations mapping for: {recipient}")
+                ui_status.text(f"Processing registration & dispatching invite for: {recipient}")
                 
                 GSheetsDatabase.write_participant_state(
                     company, d_str, t_str, event_type, recipient, "PENDING", tz_name=active_tz
@@ -102,9 +135,9 @@ with tab_dispatch:
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
 
-# --- TAB 2: ONE-CLICK SYNC & ROSTER TRACKER ---
-with tab_analytics:
-    st.subheader("Google Sheets Synchronization & Roster Visualiser")
+# --- PAGE 2: ONE-CLICK SYNC & ROSTER TRACKER ---
+elif selected_page == "📊 Cloud Database Roster Tracker":
+    st.subheader("📊 Google Sheets Synchronization & Roster Visualiser")
     st.markdown("Enter your event parameters below and click **Sync & Pull Roster** to automatically fetch new Gmail RSVP replies and view live attendance.")
     
     c1, c2, c3, c4 = st.columns(4)
@@ -113,7 +146,7 @@ with tab_analytics:
     st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
     sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
 
-    if st.button("🔄 Sync Inbox & Pull Roster Sheet Data Matrix"):
+    if st.button("🔄 Sync Inbox & Pull Roster Sheet Data Matrix", type="primary"):
         with st.spinner("Syncing latest email RSVPs from Gmail & loading Google Sheet..."):
             try:
                 # Step 1: Automatically sync all inbound RSVP emails first
@@ -129,16 +162,17 @@ with tab_analytics:
                 
                 if raw_matrix:
                     dataframe = pd.DataFrame(raw_matrix)
-                    st.dataframe(dataframe, use_container_width=True)
                     
                     total_accepted = len(dataframe[dataframe['RSVP_Status'] == 'ACCEPTED'])
                     total_pending = len(dataframe[dataframe['RSVP_Status'] == 'PENDING'])
                     total_declined = len(dataframe[dataframe['RSVP_Status'] == 'DECLINED'])
                     
                     metric_col1, metric_col2, metric_col3 = st.columns(3)
-                    metric_col1.metric("Confirmed Accepted", total_accepted)
-                    metric_col2.metric("Pending Responses", total_pending)
-                    metric_col3.metric("Declined", total_declined)
+                    metric_col1.metric("✅ Confirmed Accepted", total_accepted)
+                    metric_col2.metric("⏳ Pending Responses", total_pending)
+                    metric_col3.metric("❌ Declined", total_declined)
+                    
+                    st.dataframe(dataframe, use_container_width=True)
                 else:
                     st.warning("Spreadsheet schema database tab mapped accurately, but row elements data is currently empty.")
             except EventManagerException as error:
