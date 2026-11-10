@@ -1,7 +1,8 @@
 import gspread
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from src.core.config import SystemConfig
 from src.core.exceptions import DatabaseError
-from datetime import datetime
 
 class GSheetsDatabase:
     @staticmethod
@@ -28,7 +29,7 @@ class GSheetsDatabase:
         
         safe_time = time_str.replace(':', '-')
         tab_name = f"{company}_{date_str}_{safe_time}_{event_type.lower()}"
-        spreadsheet_id = "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms"
+        spreadsheet_id = config.get("spreadsheet_id", "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms")
 
         try:
             try:
@@ -53,11 +54,14 @@ class GSheetsDatabase:
             raise DatabaseError(f"Failed to manage master cloud datatable layouts: {repr(e)}")
 
     @staticmethod
-    def write_participant_state(company, date_str, time_str, event_type, email, status):
+    def write_participant_state(company, date_str, time_str, event_type, email, status, tz_name="Asia/Kolkata"):
         try:
             worksheet = GSheetsDatabase.get_or_create_worksheet(company, date_str, time_str, event_type)
             records = worksheet.get_all_records()
-            now = datetime.now().isoformat()
+            
+            # Format current timestamp in the active local timezone (e.g., 2026-11-10 18:32:00 IST)
+            local_tz = ZoneInfo(tz_name)
+            now = datetime.now(local_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
 
             for idx, row in enumerate(records, start=2):
                 if row['Email'].strip().lower() == email.strip().lower():
