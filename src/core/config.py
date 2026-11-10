@@ -14,6 +14,7 @@ class SystemConfig:
 
             return {
                 "host_email": unified_email,
+                "spreadsheet_id": st.secrets.get("spreadsheet_id", "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms"),
                 "gmail": {
                     "smtp_host": "://gmail.com",
                     "smtp_port": 587,
