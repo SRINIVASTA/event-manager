@@ -26,24 +26,21 @@ class GSheetsDatabase:
         config = SystemConfig.validate_and_load()
         client = GSheetsDatabase._get_client(config)
         
-        # 🚀 FORCE EXACT CASE CONSISTENCY
         spreadsheet_name = f"Event_Records_{company}"
         safe_time = time_str.replace(':', '-')
         tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
 
+        # 🚀 HARDCODED TARGET WORKSPACE FOLDER ID
+        target_folder_id = "1g-YgPE9DwSjiVoqM_DpnZJV3eujBccBh"
+
         try:
-            # Look for the file inside the system records matrix
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
-                # 🚀 AUTOMATIC INCEPTION: Let the service account create it cleanly 
-                # inside its native database space context without ownership changes
-                spreadsheet = client.create(spreadsheet_name)
-                
-                # Instantly grant your personal account access so it pops up in your Drive dashboard
+                # Creates the sheet directly inside your shared folder using the specific ID
+                spreadsheet = client.create(spreadsheet_name, folder_id=target_folder_id)
                 spreadsheet.share(config["host_email"], perm_type='user', role='writer')
 
-            # Programmatically provision and structure individual tabs
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
@@ -51,18 +48,7 @@ class GSheetsDatabase:
                 worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
             
             return worksheet
-        except gspread.exceptions.APIError as api_err:
-            # Handle standard consumer quota edge cases dynamically
-            error_data = api_err.response.json() if hasattr(api_err, 'response') else {}
-            error_msg = error_data.get('error', {}).get('message', str(api_err))
             
-            if "storage quota" in error_msg.lower():
-                raise DatabaseError(
-                    "Google account storage limitation encountered. "
-                    "Please log into your Google Drive, click 'Storage' on the left menu, "
-                    "and empty your trash bin folder to free up space parameters."
-                )
-            raise DatabaseError(f"Google Cloud storage engine reported a fault: {error_msg}")
         except Exception as e:
             raise DatabaseError(f"Failed to query or create cloud datatable layouts: {str(e)}")
 
@@ -82,3 +68,4 @@ class GSheetsDatabase:
             worksheet.append_row([email.strip().lower(), status.upper(), now])
         except Exception as e:
             raise DatabaseError(f"Could not mutate participant state line entries: {str(e)}")
+
