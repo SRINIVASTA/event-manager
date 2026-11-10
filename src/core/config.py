@@ -4,7 +4,7 @@ from src.core.exceptions import ConfigurationError
 class SystemConfig:
     @staticmethod
     def validate_and_load():
-        """Secure single source of truth loading credentials from Streamlit Secrets with strict Google production URLs."""
+        """Secure single source of truth loading credentials from Streamlit Secrets with strict Google OAuth URLs."""
         try:
             return {
                 "host_email": st.secrets["host_email"],
@@ -22,7 +22,7 @@ class SystemConfig:
                     "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
                     "private_key": st.secrets["gcp_service_account"]["private_key"],
                     "client_email": st.secrets["gcp_service_account"]["client_email"],
-                    # CRITICAL FIX: Direct full endpoint maps rather than blank domain roots
+                    # EXACT FIXED ENDPOINTS: Explicitly required by Google OAuth Client
                     "auth_uri": "https://google.com",
                     "token_uri": "https://googleapis.com",
                     "auth_provider_x509_cert_url": "https://googleapis.com"
