@@ -30,15 +30,13 @@ class GSheetsDatabase:
         safe_time = time_str.replace(':', '-')
         tab_name = f"{date_str}_{safe_time}_{event_type.lower()}"
 
-        # 🚀 HARDCODED TARGET WORKSPACE FOLDER ID
-        target_folder_id = "1g-YgPE9DwSjiVoqM_DpnZJV3eujBccBh"
-
         try:
+            # 🚀 ROOT INCEPTION ACTION: Create the file in root workspace to avoid 403 Parent errors completely
             try:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
-                # Creates the sheet directly inside your shared folder using the specific ID
-                spreadsheet = client.create(spreadsheet_name, folder_id=target_folder_id)
+                spreadsheet = client.create(spreadsheet_name)
+                # Automatically grant full writer privileges to your personal account email
                 spreadsheet.share(config["host_email"], perm_type='user', role='writer')
 
             try:
@@ -68,4 +66,3 @@ class GSheetsDatabase:
             worksheet.append_row([email.strip().lower(), status.upper(), now])
         except Exception as e:
             raise DatabaseError(f"Could not mutate participant state line entries: {str(e)}")
-
