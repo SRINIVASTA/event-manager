@@ -26,33 +26,26 @@ class GSheetsDatabase:
         config = SystemConfig.validate_and_load()
         client = GSheetsDatabase._get_client(config)
         
-        # We will use a single master spreadsheet instead of generating multiple files, 
-        # which completely dodges the personal Drive quota restriction limit bug.
-        spreadsheet_name = "Master_Event_Roster"
         safe_time = time_str.replace(':', '-')
-        
-        # Each unique event will automatically become its own beautiful separate tab folder inside it!
+        # Formats tab dynamically inside your master spreadsheet: e.g., infosys_2026-11-10_14-30_virtual
         tab_name = f"{company}_{date_str}_{safe_time}_{event_type.lower()}"
 
-        try:
-            # 🚀 TOML NO-QUOTA STRATEGY: Try opening the master tracker file.
-            try:
-                spreadsheet = client.open(spreadsheet_name)
-            except gspread.SpreadsheetNotFound:
-                # If it's the very first run, we let the app attempt a singular base initialization
-                try:
-                    spreadsheet = client.create(spreadsheet_name)
-                    spreadsheet.share(config["host_email"], perm_type='user', role='writer')
-                except gspread.exceptions.APIError as e:
-                    # If Google strictly locks file creation on this specific developer zone,
-                    # we instruct the user on how to resolve it via an alternative approach.
-                    raise DatabaseError(
-                        f"Google storage limits prevent script file creation. Please go to your personal Google Sheets, "
-                        f"create a blank spreadsheet named '{spreadsheet_name}', and click Share to add this email as Editor: "
-                        f"{config['gcp_service_account']['client_email']}"
-                    )
+        # 🚀 REWRITE FIX: HARDCODE THE EXACT UNIQUE SPREADSHEET URL ID
+        # Replace the characters below with the exact ID from your browser address bar link!
+        spreadsheet_id = "PASTE_YOUR_LONG_SPREADSHEET_ID_HERE"
 
-            # Programmatically provision and structure individual tabs inside the document
+        try:
+            # Connect directly to the specific sheet using its ID to dodge case-sensitivity bugs entirely
+            try:
+                spreadsheet = client.open_by_key(spreadsheet_id)
+            except gspread.SpreadsheetNotFound:
+                raise DatabaseError(
+                    f"Spreadsheet key ID '{spreadsheet_id}' could not be accessed! "
+                    f"Ensure you shared the file with this service email as Editor: "
+                    f"{config['gcp_service_account']['client_email']}"
+                )
+
+            # Programmatically provision and structure individual tracker tabs
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
@@ -61,7 +54,7 @@ class GSheetsDatabase:
             
             return worksheet
         except Exception as e:
-            raise DatabaseError(str(e))
+            raise DatabaseError(f"Failed to manage master cloud datatable layouts: {str(e)}")
 
     @staticmethod
     def write_participant_state(company, date_str, time_str, event_type, email, status):
