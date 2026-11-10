@@ -1,5 +1,7 @@
 import smtplib
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import quote
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -11,18 +13,25 @@ from src.core.exceptions import CommunicationError
 
 class GmailDispatcher:
     @staticmethod
-    def dispatch_invite(to_email, company, date_str, time_str, event_type, uploaded_files=None):
+    def dispatch_invite(to_email, company, date_str, time_str, event_type, uploaded_files=None, tz_name="Asia/Kolkata"):
         config = SystemConfig.validate_and_load()
         sender = config["gmail"]["username"]
 
         try:
+            # Build timezone-aware start datetime (handles India IST, USA EST/PST, etc. automatically)
+            local_tz = ZoneInfo(tz_name)
+            naive_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+            aware_dt = naive_dt.replace(tzinfo=local_tz)
+            tz_abbr = aware_dt.strftime("%Z")  # e.g., 'IST', 'EST', 'PST', 'GMT'
+            display_time = f"{time_str} {tz_abbr} ({tz_name})"
+
             msg = MIMEMultipart('mixed')
             msg['Subject'] = f"Invitation: {company} Programme ({date_str})"
             msg['From'] = f'"Programmes Portal" <{sender}>'
             msg['To'] = to_email
 
-            # URL-encode subject and body so spaces and '|' characters never break mailto: links
-            metadata = f"| {company} | {date_str} | {time_str} | {event_type}"
+            # Embed tz_name in metadata so RSVP sync logs the response in the same timezone
+            metadata = f"| {company} | {date_str} | {time_str} | {event_type} | {tz_name}"
             accept_subject = quote(f"RSVP ACCEPT {metadata}")
             accept_body = quote("Send this email as-is to confirm your attendance.")
             decline_subject = quote(f"RSVP DECLINE {metadata}")
@@ -38,7 +47,7 @@ class GmailDispatcher:
             html_body = (
                 html_body.replace("{{COMPANY_NAME}}", company)
                          .replace("{{DATE}}", date_str)
-                         .replace("{{TIME}}", time_str)
+                         .replace("{{TIME}}", display_time)
                          .replace("{{TYPE}}", event_type)
                          .replace("{{ACCEPT_LINK}}", accept_url)
                          .replace("{{DECLINE_LINK}}", decline_url)
@@ -46,11 +55,11 @@ class GmailDispatcher:
             
             msg.attach(MIMEText(html_body, 'html'))
 
-            # Generate .ics calendar attachment with IST (+05:30) timezone offset
+            # Generate .ics calendar attachment using the exact timezone-aware datetime
             c = Calendar()
             e = Event(
                 name=f"{company} Programme ({event_type})",
-                begin=f"{date_str}T{time_str}:00+05:30"
+                begin=aware_dt
             )
             c.events.add(e)
             
