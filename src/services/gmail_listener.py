@@ -22,6 +22,7 @@ class GmailListener:
     @staticmethod
     def poll_and_sync_rsvps(default_tz="Asia/Kolkata"):
         config = SystemConfig.validate_and_load()
+        host_email = config["gmail"]["username"].strip().lower()
         sync_logs = []
 
         try:
@@ -29,7 +30,6 @@ class GmailListener:
             mail.login(config["gmail"]["username"], config["gmail"]["app_password"])
             mail.select("inbox")
 
-            # Scans all RSVP messages (even if you already opened/read them in Gmail)
             status, response = mail.search(None, '(SUBJECT "RSVP ")')
             if status == 'OK' and response and response:
                 for num in response.split():
@@ -39,9 +39,13 @@ class GmailListener:
                     
                     msg = email.message_from_bytes(data)
                     subject = GmailListener._decode_subject(msg['Subject'])
-                    sender_raw = email.utils.parseaddr(msg['From'])
+                    sender_raw = email.utils.parseaddr(msg['From']).strip().lower()
 
-                    if "RSVP " in subject and "|" in subject:
+                    # Skip self-sent emails from the host account so only real guest replies update the sheet
+                    if not sender_raw or sender_raw == host_email:
+                        continue
+
+                    if "RSVP " in subject.upper() and "|" in subject:
                         parts = [p.strip() for p in subject.split('|')]
                         if len(parts) >= 5:
                             action = "ACCEPTED" if "ACCEPT" in parts.upper() else "DECLINED"
