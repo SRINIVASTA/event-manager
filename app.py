@@ -2,21 +2,44 @@ import streamlit as st
 import pandas as pd
 import time
 import datetime
+from zoneinfo import ZoneInfo
 from src.core.config import SystemConfig
 from src.services.gsheets_database import GSheetsDatabase
 from src.services.gmail_dispatcher import GmailDispatcher
 from src.services.gmail_listener import GmailListener
 from src.core.exceptions import EventManagerException
 
-# Bootstrap structural configurations validation checks check rules
 try:
     SystemConfig.validate_and_load()
 except EventManagerException as e:
     st.error(str(e))
     st.stop()
 
+TIMEZONE_OPTIONS = {
+    "India (IST - Asia/Kolkata)": "Asia/Kolkata",
+    "USA Eastern (EST/EDT - America/New_York)": "America/New_York",
+    "USA Central (CST/CDT - America/Chicago)": "America/Chicago",
+    "USA Mountain (MST/MDT - America/Denver)": "America/Denver",
+    "USA Pacific (PST/PDT - America/Los_Angeles)": "America/Los_Angeles",
+    "UK (GMT/BST - Europe/London)": "Europe/London",
+    "UAE (GST - Asia/Dubai)": "Asia/Dubai",
+    "Singapore (SGT - Asia/Singapore)": "Asia/Singapore",
+    "Australia Sydney (AEST/AEDT - Australia/Sydney)": "Australia/Sydney",
+    "UTC (Universal Coordinated Time)": "UTC"
+}
+
 st.title("✉️ Enterprise Event Communications Engine")
 st.markdown("Automate Luma-style templates, secure dynamic attachments, and synchronize tracking lists live to Google Sheets via Gmail APIs.")
+
+# Global Region / Timezone Selector at the top of the app
+selected_tz_label = st.selectbox(
+    "🌍 Select Active Region / Timezone (applies to invites, calendar files & sheet logs):",
+    options=list(TIMEZONE_OPTIONS.keys()),
+    index=0  # Defaults to India (Asia/Kolkata)
+)
+active_tz = TIMEZONE_OPTIONS[selected_tz_label]
+current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
+st.caption(f"Current local time in selected region: **{current_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')}**")
 
 tab_dispatch, tab_analytics = st.tabs(["🆕 Launch Campaign Portal", "📊 Cloud Database Roster Tracker"])
 
@@ -26,7 +49,7 @@ with tab_dispatch:
     col_left, col_right = st.columns(2)
     with col_left:
         company = st.text_input("Target Corporate/Program entity Name:", placeholder="e.g., Infosys")
-        event_date = st.date_input("Target Execution Date Frame:", value=datetime.date(2026, 11, 10))
+        event_date = st.date_input("Target Execution Date Frame:", value=current_local_now.date())
         event_time = st.time_input("Target Execution Timestamp Layout:", value=datetime.time(14, 30))
     with col_right:
         event_type = st.selectbox("Select Access Medium Format Typer Matrix:", ["Virtual", "Walk-in"])
@@ -40,14 +63,12 @@ with tab_dispatch:
             st.stop()
 
         try:
-            # Tokenise string structures elements clean formatting allocations array
             raw_tokens = receivers_input.replace("\n", ",").split(",")
             clean_recipients = [r.strip() for r in raw_tokens if "@" in r]
 
             d_str = event_date.strftime("%Y-%m-%d")
             t_str = event_time.strftime("%H:%M")
 
-            # Initialize spreadsheet schema records baseline definitions state instantly
             GSheetsDatabase.get_or_create_worksheet(company, d_str, t_str, event_type)
 
             ui_progress = st.progress(0)
@@ -56,18 +77,20 @@ with tab_dispatch:
             for index, recipient in enumerate(clean_recipients):
                 ui_status.text(f"Processing structural registration pipeline state allocations mapping for: {recipient}")
                 
-                # Set baseline allocation parameter states
-                GSheetsDatabase.write_participant_state(company, d_str, t_str, event_type, recipient, "PENDING")
+                GSheetsDatabase.write_participant_state(
+                    company, d_str, t_str, event_type, recipient, "PENDING", tz_name=active_tz
+                )
                 
-                # Blast email template framework structure allocation mappings out
-                GmailDispatcher.dispatch_invite(recipient, company, d_str, t_str, event_type, uploaded_files)
+                GmailDispatcher.dispatch_invite(
+                    recipient, company, d_str, t_str, event_type, uploaded_files, tz_name=active_tz
+                )
                 
                 ui_progress.progress((index + 1) / len(clean_recipients))
                 if len(clean_recipients) > 1:
-                    time.sleep(1.0) # Anti-spam cooling period layout intervals delay injection logic
+                    time.sleep(1.0)
 
             ui_status.empty()
-            st.success(f"Successfully deployed communications grid. {len(clean_recipients)} Luma templates sent out successfully! 🚀")
+            st.success(f"Successfully deployed communications grid in {active_tz}. {len(clean_recipients)} Luma templates sent out successfully! 🚀")
 
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
@@ -78,7 +101,7 @@ with tab_analytics:
     if st.button("🔄 Sync Inbound RSVP Responses From Inbox Now"):
         with st.spinner("Connecting to Gmail secure messaging IMAP server loops configuration framework..."):
             try:
-                logs = GmailListener.poll_and_sync_rsvps()
+                logs = GmailListener.poll_and_sync_rsvps(default_tz=active_tz)
                 if logs:
                     for log_entry in logs:
                         st.toast(log_entry, icon="✅")
@@ -92,8 +115,8 @@ with tab_analytics:
     st.markdown("### Inspect Cloud Document Workspace Tab Visualiser Dataframes")
     
     c1, c2, c3, c4 = st.columns(4)
-    sc = c1.text_input("Filter Company Name Key:", value="Infosys")
-    sd = c2.text_input("Filter Date Matrix (YYYY-MM-DD):", value="2026-11-10")
+    sc = c1.text_input("Filter Company Name Key:", value="infosys")
+    sd = c2.text_input("Filter Date Matrix (YYYY-MM-DD):", value=current_local_now.strftime("%Y-%m-%d"))
     st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
     sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
 
