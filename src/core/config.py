@@ -4,24 +4,26 @@ from src.core.exceptions import ConfigurationError
 class SystemConfig:
     @staticmethod
     def validate_and_load():
-        """Unified configuration loader that auto-cleans private key formatting strings."""
+        """Unified configuration loader aligned with [gmail] username/app_password secrets."""
         try:
-            unified_email = st.secrets["shared_email"]
+            # Matches your working script: reads st.secrets["gmail"]["username"] directly
+            gmail_username = st.secrets["gmail"]["username"]
+            gmail_app_password = st.secrets["gmail"]["app_password"]
 
             # Automatically convert string literal '\n' into true system line breaks
             raw_private_key = st.secrets["gcp_service_account"]["private_key"]
             clean_private_key = raw_private_key.replace("\\n", "\n").replace(r"\n", "\n").strip()
 
             return {
-                "host_email": unified_email,
+                "host_email": gmail_username,
                 "spreadsheet_id": st.secrets.get("spreadsheet_id", "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms"),
                 "gmail": {
-                    "smtp_host": "://gmail.com",
+                    "smtp_host": "smtp.gmail.com",
                     "smtp_port": 587,
-                    "imap_host": "://gmail.com",
+                    "imap_host": "imap.gmail.com",
                     "imap_port": 993,
-                    "username": unified_email,
-                    "app_password": st.secrets["gmail"]["app_password"]
+                    "username": gmail_username,
+                    "app_password": gmail_app_password
                 },
                 "gcp_service_account": {
                     "type": "service_account",
