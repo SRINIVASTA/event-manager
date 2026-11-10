@@ -8,12 +8,7 @@ class GSheetsDatabase:
     @staticmethod
     def _get_client(config):
         try:
-            # 🚀 FIXED SCOPES: Completely isolated array format strings without inner commas
-            scopes = [
-                "https://googleapis.com",
-                "https://googleapis.com"
-            ]
-            
+            # Reconstruct the precise parameters required by Google's client service info schema
             service_account_info = {
                 "type": "service_account",
                 "project_id": config["gcp_service_account"]["project_id"],
@@ -25,8 +20,19 @@ class GSheetsDatabase:
                 "auth_provider_x509_cert_url": config["gcp_service_account"]["auth_provider_x509_cert_url"]
             }
             
-            creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
-            return gspread.authorize(creds)
+            # 1. Initialize base credentials WITHOUT pre-binding scopes string arrays
+            creds = Credentials.from_service_account_info(service_account_info)
+            
+            # 2. Define target scopes flat list array explicitly
+            target_scopes = [
+                "https://googleapis.com",
+                "https://googleapis.com"
+            ]
+            
+            # 3. CRITICAL INTERPOLATION FIX: Inject the target scopes list into the final authorize step, 
+            # which correctly guides gspread's internal token refresh mechanism
+            return gspread.authorize(creds.with_scopes(target_scopes))
+            
         except Exception as e:
             raise DatabaseError(f"Authentication with Google Cloud APIs broken: {str(e)}")
 
@@ -44,6 +50,7 @@ class GSheetsDatabase:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
                 spreadsheet = client.create(spreadsheet_name)
+                # Automatically grant editor access permissions to your unified master address
                 spreadsheet.share(config["host_email"], perm_type='user', role='writer')
 
             try:
@@ -72,3 +79,4 @@ class GSheetsDatabase:
             worksheet.append_row([email.strip().lower(), status.upper(), now])
         except Exception as e:
             raise DatabaseError(f"Could not mutate participant state line entries: {str(e)}")
+
