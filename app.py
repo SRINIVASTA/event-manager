@@ -28,14 +28,13 @@ TIMEZONE_OPTIONS = {
     "UTC (Universal Coordinated Time)": "UTC"
 }
 
-st.title("✉️ Enterprise Event Communications Engine")
-st.markdown("Automate Luma-style templates, secure dynamic attachments, and synchronize tracking lists live to Google Sheets via Gmail APIs.")
+st.title("✉️ Uttaram — Enterprise Event Communications Engine")
+st.markdown("Automate Uttaram-style templates, secure dynamic attachments, and synchronize tracking lists live to Google Sheets via Gmail APIs.")
 
-# Global Region / Timezone Selector at the top of the app
 selected_tz_label = st.selectbox(
     "🌍 Select Active Region / Timezone (applies to invites, calendar files & sheet logs):",
     options=list(TIMEZONE_OPTIONS.keys()),
-    index=0  # Defaults to India (Asia/Kolkata)
+    index=0
 )
 active_tz = TIMEZONE_OPTIONS[selected_tz_label]
 current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
@@ -90,7 +89,7 @@ with tab_dispatch:
                     time.sleep(1.0)
 
             ui_status.empty()
-            st.success(f"Successfully deployed communications grid in {active_tz}. {len(clean_recipients)} Luma templates sent out successfully! 🚀")
+            st.success(f"Successfully deployed communications grid in {active_tz}. {len(clean_recipients)} Uttaram templates sent out successfully! 🚀")
 
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
@@ -107,7 +106,7 @@ with tab_analytics:
                         st.toast(log_entry, icon="✅")
                     st.success(f"Synchronisation complete! Synced {len(logs)} participant status adjustments.")
                 else:
-                    st.info("No unread email RSVP confirmations detected in the system inbox at this time.")
+                    st.info("No email RSVP confirmations detected in the system inbox at this time.")
             except EventManagerException as error:
                 st.error(f"Sync operation failure message parameters: {str(error)}")
 
