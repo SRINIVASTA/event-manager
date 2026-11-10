@@ -19,7 +19,7 @@ class GSheetsDatabase:
             }
             return gspread.service_account_from_dict(service_account_info)
         except Exception as e:
-            raise DatabaseError(f"Authentication with Google Cloud APIs broken: {str(e)}")
+            raise DatabaseError(f"Authentication with Google Cloud APIs broken: {repr(e)}")
 
     @staticmethod
     def get_or_create_worksheet(company, date_str, time_str, event_type):
@@ -27,15 +27,10 @@ class GSheetsDatabase:
         client = GSheetsDatabase._get_client(config)
         
         safe_time = time_str.replace(':', '-')
-        # Formats tab dynamically inside your master spreadsheet: e.g., infosys_2026-11-10_14-30_virtual
         tab_name = f"{company}_{date_str}_{safe_time}_{event_type.lower()}"
-
-        # 🚀 REWRITE FIX: HARDCODE THE EXACT UNIQUE SPREADSHEET URL ID
-        # Replace the characters below with the exact ID from your browser address bar link!
-        spreadsheet_id = "PASTE_YOUR_LONG_SPREADSHEET_ID_HERE"
+        spreadsheet_id = "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms"
 
         try:
-            # Connect directly to the specific sheet using its ID to dodge case-sensitivity bugs entirely
             try:
                 spreadsheet = client.open_by_key(spreadsheet_id)
             except gspread.SpreadsheetNotFound:
@@ -45,7 +40,6 @@ class GSheetsDatabase:
                     f"{config['gcp_service_account']['client_email']}"
                 )
 
-            # Programmatically provision and structure individual tracker tabs
             try:
                 worksheet = spreadsheet.worksheet(tab_name)
             except gspread.WorksheetNotFound:
@@ -53,8 +47,10 @@ class GSheetsDatabase:
                 worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
             
             return worksheet
+        except DatabaseError:
+            raise
         except Exception as e:
-            raise DatabaseError(f"Failed to manage master cloud datatable layouts: {str(e)}")
+            raise DatabaseError(f"Failed to manage master cloud datatable layouts: {repr(e)}")
 
     @staticmethod
     def write_participant_state(company, date_str, time_str, event_type, email, status):
@@ -71,4 +67,4 @@ class GSheetsDatabase:
 
             worksheet.append_row([email.strip().lower(), status.upper(), now])
         except Exception as e:
-            raise DatabaseError(f"Could not mutate participant state line entries: {str(e)}")
+            raise DatabaseError(f"Could not mutate participant state line entries: {repr(e)}")
