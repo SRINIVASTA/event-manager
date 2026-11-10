@@ -1,5 +1,6 @@
 import smtplib
 import os
+from urllib.parse import quote
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -20,26 +21,37 @@ class GmailDispatcher:
             msg['From'] = f'"Programmes Portal" <{sender}>'
             msg['To'] = to_email
 
+            # URL-encode subject and body so spaces and '|' characters never break mailto: links
             metadata = f"| {company} | {date_str} | {time_str} | {event_type}"
-            accept_url = f"mailto:{sender}?subject=RSVP ACCEPT {metadata}&body=Send to confirm attendance."
-            decline_url = f"mailto:{sender}?subject=RSVP DECLINE {metadata}&body=Send to decline invitation."
+            accept_subject = quote(f"RSVP ACCEPT {metadata}")
+            accept_body = quote("Send this email as-is to confirm your attendance.")
+            decline_subject = quote(f"RSVP DECLINE {metadata}")
+            decline_body = quote("Send this email as-is to decline the invitation.")
+
+            accept_url = f"mailto:{sender}?subject={accept_subject}&body={accept_body}"
+            decline_url = f"mailto:{sender}?subject={decline_subject}&body={decline_body}"
 
             template_path = os.path.join(os.path.dirname(__file__), '../templates/invite_template.html')
-            with open(template_path, 'r') as file:
+            with open(template_path, 'r', encoding='utf-8') as file:
                 html_body = file.read()
 
-            html_body = html_body.replace("{{COMPANY_NAME}}", company)\
-                                 .replace("{{DATE}}", date_str)\
-                                 .replace("{{TIME}}", time_str)\
-                                 .replace("{{TYPE}}", event_type)\
-                                 .replace("{{ACCEPT_LINK}}", accept_url)\
-                                 .replace("{{DECLINE_LINK}}", decline_url)
+            html_body = (
+                html_body.replace("{{COMPANY_NAME}}", company)
+                         .replace("{{DATE}}", date_str)
+                         .replace("{{TIME}}", time_str)
+                         .replace("{{TYPE}}", event_type)
+                         .replace("{{ACCEPT_LINK}}", accept_url)
+                         .replace("{{DECLINE_LINK}}", decline_url)
+            )
             
             msg.attach(MIMEText(html_body, 'html'))
 
-            # Generate .ics attachment
+            # Generate .ics calendar attachment with IST (+05:30) timezone offset
             c = Calendar()
-            e = Event(name=f"{company} Programme ({event_type})", begin=f"{date_str} {time_str}:00")
+            e = Event(
+                name=f"{company} Programme ({event_type})",
+                begin=f"{date_str}T{time_str}:00+05:30"
+            )
             c.events.add(e)
             
             cal_part = MIMEBase('text', 'calendar', method='REQUEST', name='invite.ics')
@@ -57,7 +69,6 @@ class GmailDispatcher:
                     msg.attach(file_part)
                     f.seek(0)
 
-            # Connects directly using the hardcoded configuration properties
             with smtplib.SMTP(config["gmail"]["smtp_host"], config["gmail"]["smtp_port"]) as server:
                 server.starttls()
                 server.login(sender, config["gmail"]["app_password"])
