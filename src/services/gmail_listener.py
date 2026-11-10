@@ -20,7 +20,7 @@ class GmailListener:
         return subject
 
     @staticmethod
-    def poll_and_sync_rsvps():
+    def poll_and_sync_rsvps(default_tz="Asia/Kolkata"):
         config = SystemConfig.validate_and_load()
         sync_logs = []
 
@@ -45,9 +45,10 @@ class GmailListener:
                         if len(parts) >= 5:
                             action = "ACCEPTED" if "ACCEPT" in parts.upper() else "DECLINED"
                             company, date_str, time_str, event_type = parts, parts, parts, parts
+                            tz_name = parts if len(parts) >= 6 else default_tz
 
                             GSheetsDatabase.write_participant_state(
-                                company, date_str, time_str, event_type, sender_raw, action
+                                company, date_str, time_str, event_type, sender_raw, action, tz_name=tz_name
                             )
                             sync_logs.append(f"Synchronised {sender_raw} -> {action} ({company})")
                             mail.store(num, '+FLAGS', '\\Seen')
