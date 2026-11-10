@@ -1,5 +1,4 @@
 import gspread
-from google.oauth2.service_account import Credentials
 from src.core.config import SystemConfig
 from src.core.exceptions import DatabaseError
 from datetime import datetime
@@ -8,7 +7,7 @@ class GSheetsDatabase:
     @staticmethod
     def _get_client(config):
         try:
-            # Reconstruct the precise parameters required by Google's client service info schema
+            # Reconstruct the exact dictionary keys required by Google Cloud IAM
             service_account_info = {
                 "type": "service_account",
                 "project_id": config["gcp_service_account"]["project_id"],
@@ -20,18 +19,9 @@ class GSheetsDatabase:
                 "auth_provider_x509_cert_url": config["gcp_service_account"]["auth_provider_x509_cert_url"]
             }
             
-            # 1. Initialize base credentials WITHOUT pre-binding scopes string arrays
-            creds = Credentials.from_service_account_info(service_account_info)
-            
-            # 2. Define target scopes flat list array explicitly
-            target_scopes = [
-                "https://googleapis.com",
-                "https://googleapis.com"
-            ]
-            
-            # 3. CRITICAL INTERPOLATION FIX: Inject the target scopes list into the final authorize step, 
-            # which correctly guides gspread's internal token refresh mechanism
-            return gspread.authorize(creds.with_scopes(target_scopes))
+            # 🚀 ULTIMATE FIX: Let gspread natively handle default scopes under the hood.
+            # This completely avoids the internal array token string generation bug.
+            return gspread.service_account_from_dict(service_account_info)
             
         except Exception as e:
             raise DatabaseError(f"Authentication with Google Cloud APIs broken: {str(e)}")
@@ -50,7 +40,7 @@ class GSheetsDatabase:
                 spreadsheet = client.open(spreadsheet_name)
             except gspread.SpreadsheetNotFound:
                 spreadsheet = client.create(spreadsheet_name)
-                # Automatically grant editor access permissions to your unified master address
+                # Automatically grant editor access to your centralized account email
                 spreadsheet.share(config["host_email"], perm_type='user', role='writer')
 
             try:
@@ -79,4 +69,3 @@ class GSheetsDatabase:
             worksheet.append_row([email.strip().lower(), status.upper(), now])
         except Exception as e:
             raise DatabaseError(f"Could not mutate participant state line entries: {str(e)}")
-
