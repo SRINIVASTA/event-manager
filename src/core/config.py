@@ -8,7 +8,7 @@ class SystemConfig:
         try:
             unified_email = st.secrets["shared_email"]
 
-            # CRITICAL FIX: Automatically convert string literal '\n' into true system line breaks
+            # Automatically convert string literal '\n' into true system line breaks
             raw_private_key = st.secrets["gcp_service_account"]["private_key"]
             clean_private_key = raw_private_key.replace("\\n", "\n").replace(r"\n", "\n").strip()
 
@@ -26,7 +26,7 @@ class SystemConfig:
                     "type": "service_account",
                     "project_id": st.secrets["gcp_service_account"]["project_id"],
                     "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
-                    "private_key": clean_private_key, # Safe cleaned key injected here
+                    "private_key": clean_private_key,
                     "client_email": st.secrets["gcp_service_account"]["client_email"],
                     "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
                     "token_uri": st.secrets["gcp_service_account"]["token_uri"],
