@@ -260,7 +260,7 @@ if selected_page == "🆕 Launch Campaign Portal":
         placeholder="Describe session highlights, speakers, and agenda..."
     )
 
-    with st.expander("🖼️ Cover Image & Custom Event Page URL (Optional)"):
+    with st.expander("🖼️ Cover Image & Event Page Link Options (Optional)"):
         cover_mode = st.radio(
             "Event Cover Image Source:",
             options=["None", "Upload Image File", "Paste Image URL"],
@@ -276,12 +276,21 @@ if selected_page == "🆕 Launch Campaign Portal":
         elif cover_mode == "Paste Image URL":
             cover_url = st.text_input("Event Cover Image URL:", placeholder="https://example.com")
 
-        default_portal_url = st.secrets.get("portal_base_url", "")
-        portal_base_url = st.text_input(
-            "Event Page Web App URL (Auto-loaded from Secrets if configured):",
-            value=default_portal_url,
-            placeholder="https://google.com"
+        st.divider()
+        page_link_mode = st.radio(
+            "Event Page Destination:",
+            options=[
+                "Built-in App Event Page (Guests view & register inside this app)",
+                "Custom External URL (Link to a separate external landing page)"
+            ]
         )
+        if "Custom External URL" in page_link_mode:
+            portal_base_url = st.text_input(
+                "Enter Custom Event Page URL:",
+                placeholder="https://your-custom-event-site.com"
+            )
+        else:
+            portal_base_url = st.secrets.get("portal_base_url", "http://localhost:8501")
 
     st.divider()
     st.subheader("📋 Automatic Registration Form Setup")
@@ -313,6 +322,10 @@ if selected_page == "🆕 Launch Campaign Portal":
 
         if "Option 2" in reg_choice and not custom_questions.strip():
             st.error("Please enter at least one custom question for Option 2.")
+            st.stop()
+
+        if "Custom External URL" in page_link_mode and not portal_base_url.strip():
+            st.error("Please enter the Custom Event Page URL.")
             st.stop()
 
         try:
@@ -357,7 +370,10 @@ if selected_page == "🆕 Launch Campaign Portal":
                 )
 
                 clean_base = portal_base_url.strip().rstrip("/")
-                guest_event_url = f"{clean_base}?{urlencode({'event': campaign_id, 'email': recipient})}" if clean_base else ""
+                if "Custom External URL" in page_link_mode:
+                    guest_event_url = clean_base
+                else:
+                    guest_event_url = f"{clean_base}/?{urlencode({'event': campaign_id, 'email': recipient})}"
 
                 try:
                     GmailDispatcher.dispatch_invite(
@@ -377,9 +393,8 @@ if selected_page == "🆕 Launch Campaign Portal":
 
             ui_status.empty()
             st.success(f"Successfully deployed {len(clean_recipients)} invitations in {active_tz}! 🚀")
-            if portal_base_url.strip():
-                preview_link = f"{portal_base_url.strip().rstrip('/')}?event={campaign_id}"
-                st.info(f"🔗 **Preview Guest Event Page:** [{preview_link}]({preview_link})")
+            preview_link = f"{portal_base_url.strip().rstrip('/')}/?event={campaign_id}" if "Built-in" in page_link_mode else portal_base_url.strip()
+            st.info(f"🔗 **Preview Guest Event Page:** [{preview_link}]({preview_link})")
 
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
