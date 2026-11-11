@@ -262,21 +262,18 @@ if selected_page == "🆕 Launch Campaign Portal":
         host_name = st.text_input("Hosted By (Organizer Name):", placeholder="e.g., Srinivas T A")
         event_title = st.text_input("Event Title:", placeholder="e.g., Enterprise AI Agents Workshop")
         event_date = st.date_input("Target Execution Date:", value=current_local_now.date())
-        event_time = st.time_input("Target Execution Time:", value=datetime.time(14, 30))
 
     with col_right:
+        event_time = st.time_input("Target Execution Time:", value=datetime.time(14, 30))
         event_type = st.selectbox("Access Medium Format:", ["Virtual", "Walk-in"])
         portal_base_url = st.text_input("Event Portal Base URL:", value="https://streamlit.app")
-        join_link = st.text_input(
-            "Meeting Join Link or Venue Address (Sent ONLY after registration):",
-            placeholder="https://google.com"
-        )
         cover_url = st.text_input("Event Cover Image URL (Optional):", placeholder="https://...")
-        receivers_input = st.text_area(
-            "Intended Recipient Email List (separate by commas or new lines):",
-            height=105,
-            placeholder="candidate1@gmail.com, candidate2@gmail.com"
-        )
+
+    receivers_input = st.text_area(
+        "Intended Recipient Email List (separate by commas or new lines):",
+        height=100,
+        placeholder="candidate1@gmail.com, candidate2@gmail.com"
+    )
 
     about_event = st.text_area(
         "About Event (Agenda & Description shown on Event Page):",
@@ -346,7 +343,7 @@ if selected_page == "🆕 Launch Campaign Portal":
                 "tz_name": active_tz,
                 "about_event": about_event.strip(),
                 "cover_url": cover_url.strip(),
-                "join_link": join_link.strip(),
+                "join_link": "",
                 "reg_mode": reg_mode_code,
                 "google_form_url": google_form_url.strip(),
                 "form_sheet_tab": form_sheet_tab.strip()
@@ -388,7 +385,6 @@ if selected_page == "🆕 Launch Campaign Portal":
 
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
-
 elif selected_page == "📊 Cloud Database Roster Tracker":
     st.subheader("📊 Google Sheets Synchronization & Roster Visualiser")
     st.markdown("Click **Sync & Pull Roster** to fetch new Gmail replies, sync Google Form responses, and view live attendance.")
@@ -399,6 +395,8 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
     st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
     sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
 
+    campaign_id = f"{sc.strip().lower().replace(' ', '_')}_{sd}_{st_t.replace(':', '-')}_{sty.lower()}"
+
     if st.button("🔄 Sync Inbox, Forms & Pull Roster Sheet Data", type="primary"):
         with st.spinner("Syncing Gmail RSVPs, Google Form submissions & loading Roster..."):
             try:
@@ -408,7 +406,6 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
                         st.toast(log_entry, icon="✅")
                     st.success(f"Inbox synced! Processed {len(logs)} email RSVP response(s).")
 
-                campaign_id = f"{sc.strip().lower().replace(' ', '_')}_{sd}_{st_t.replace(':', '-')}_{sty.lower()}"
                 meta = load_campaign_metadata(campaign_id)
                 if meta and meta.get("reg_mode") == "GOOGLE_FORM":
                     form_updates = sync_google_form_responses(meta, active_tz)
@@ -435,3 +432,47 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
                     st.warning("Spreadsheet tab mapped accurately, but row data is currently empty.")
             except EventManagerException as error:
                 st.error(f"Failed to sync or extract roster data: {str(error)}")
+
+    st.divider()
+    st.subheader("📩 Post-Registration: Send Joining Link & Calendar Invite (.ics)")
+    st.markdown("Add the meeting link or venue address below and send the final confirmation email with `.ics` attachment to all **ACCEPTED** guests.")
+
+    meta_current = load_campaign_metadata(campaign_id)
+    existing_join_link = meta_current.get("join_link", "") if meta_current else ""
+    final_join_link = st.text_input(
+        "Meeting Join Link or Venue Address:",
+        value=existing_join_link,
+        placeholder="https://google.com"
+    )
+
+    if st.button("📨 Send Confirmation + .ics Calendar Invite to Accepted Guests"):
+        if not meta_current:
+            st.error("Campaign metadata not found. Please check the Company, Date, Time, and Format filters above.")
+        elif not final_join_link.strip():
+            st.error("Please enter the Meeting Join Link or Venue Address first.")
+        else:
+            meta_current["join_link"] = final_join_link.strip()
+            save_campaign_metadata(meta_current)
+
+            worksheet = GSheetsDatabase.get_or_create_worksheet(sc, sd, st_t, sty)
+            accepted_guests = [
+                r["Email"] for r in worksheet.get_all_records()
+                if str(r.get("RSVP_Status", "")).upper() == "ACCEPTED" and "@" in str(r.get("Email", ""))
+            ]
+
+            if not accepted_guests:
+                st.warning("No ACCEPTED guests found in this roster tab yet.")
+            else:
+                sent_count = 0
+                for guest_email in accepted_guests:
+                    if hasattr(GmailDispatcher, "dispatch_confirmation"):
+                        GmailDispatcher.dispatch_confirmation(
+                            guest_email, meta_current["company"], meta_current["event_title"],
+                            meta_current["date_str"], meta_current["time_str"], meta_current["event_type"],
+                            final_join_link.strip(), tz_name=meta_current.get("tz_name", active_tz)
+                        )
+                        sent_count += 1
+                if sent_count > 0:
+                    st.success(f"Sent 'Registration Confirmed' + .ics calendar invite to {sent_count} accepted guest(s)! 🎉")
+                else:
+                    st.info("Saved the Meeting Join Link! Update `gmail_dispatcher.py` with `dispatch_confirmation()` to send the `.ics` confirmation emails.")
