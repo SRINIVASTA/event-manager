@@ -41,7 +41,7 @@ def get_metadata_worksheet():
     expected_headers = [
         "campaign_id", "company", "host_name", "event_title", "date_str",
         "time_str", "event_type", "tz_name", "about_event", "cover_url",
-        "join_link", "reg_mode", "google_form_url", "form_sheet_tab"
+        "join_link", "reg_mode", "custom_questions"
     ]
     if ws.row_values(1) != expected_headers:
         ws.clear()
@@ -54,11 +54,11 @@ def save_campaign_metadata(meta: dict):
         meta["campaign_id"], meta["company"], meta["host_name"], meta["event_title"],
         meta["date_str"], meta["time_str"], meta["event_type"], meta["tz_name"],
         meta["about_event"], meta["cover_url"], meta["join_link"], meta["reg_mode"],
-        meta["google_form_url"], meta["form_sheet_tab"]
+        meta["custom_questions"]
     ]
     for idx, rec in enumerate(ws.get_all_records(), start=2):
         if str(rec.get("campaign_id")) == meta["campaign_id"]:
-            ws.update(f"A{idx}:N{idx}", [row_values])
+            ws.update(f"A{idx}:M{idx}", [row_values])
             return
     ws.append_row(row_values)
 
@@ -68,45 +68,32 @@ def load_campaign_metadata(campaign_id: str) -> dict | None:
             return rec
     return None
 
-def sync_google_form_responses(meta: dict, default_tz: str) -> int:
-    form_tab = meta.get("form_sheet_tab", "").strip()
-    if not form_tab:
-        return 0
-    try:
-        client = GSheetsDatabase._get_client()
-        sheet = client.open_by_key(SystemConfig.GOOGLE_SHEET_ID)
-        form_rows = sheet.worksheet(form_tab).get_all_records()
+def save_guest_registration_details(meta: dict, email: str, guest_name: str, answers: dict):
+    """Updates RSVP_Status to ACCEPTED and automatically appends custom question columns."""
+    GSheetsDatabase.write_participant_state(
+        meta["company"], meta["date_str"], meta["time_str"],
+        meta["event_type"], email, "ACCEPTED", tz_name=meta["tz_name"]
+    )
+    ws = GSheetsDatabase.get_or_create_worksheet(
+        meta["company"], meta["date_str"], meta["time_str"], meta["event_type"]
+    )
+    headers = ws.row_values(1)
+    all_fields = {"Guest_Name": guest_name, **answers}
 
-        submitted_emails = {
-            str(v).strip().lower()
-            for r in form_rows for k, v in r.items()
-            if "email" in str(k).lower() and "@" in str(v)
-        }
-        if not submitted_emails:
-            return 0
+    for field_name in all_fields:
+        if field_name not in headers:
+            headers.append(field_name)
+    ws.update("A1", [headers])
 
-        roster_ws = GSheetsDatabase.get_or_create_worksheet(
-            meta["company"], meta["date_str"], meta["time_str"], meta["event_type"]
-        )
-        updated = 0
-        for rec in roster_ws.get_all_records():
-            email = str(rec.get("Email", "")).strip().lower()
-            if email in submitted_emails and str(rec.get("RSVP_Status", "")).upper() != "ACCEPTED":
-                GSheetsDatabase.write_participant_state(
-                    meta["company"], meta["date_str"], meta["time_str"],
-                    meta["event_type"], email, "ACCEPTED", tz_name=default_tz
-                )
-                if hasattr(GmailDispatcher, "dispatch_confirmation"):
-                    GmailDispatcher.dispatch_confirmation(
-                        email, meta["company"], meta["event_title"],
-                        meta["date_str"], meta["time_str"], meta["event_type"],
-                        meta["join_link"], tz_name=meta.get("tz_name", default_tz)
-                    )
-                updated += 1
-        return updated
-    except Exception:
-        return 0
+    records = ws.get_all_records()
+    for row_idx, rec in enumerate(records, start=2):
+        if str(rec.get("Email", "")).strip().lower() == email.strip().lower():
+            for field_name, val in all_fields.items():
+                col_idx = headers.index(field_name) + 1
+                ws.update_cell(row_idx, col_idx, val)
+            break
 
+# --- GUEST EVENT & REGISTRATION PORTAL (?event=...) ---
 event_param = st.query_params.get("event", None)
 if event_param:
     st.markdown(
@@ -128,9 +115,6 @@ if event_param:
         st.stop()
 
     guest_email_prefill = st.query_params.get("email", "")
-    if meta.get("reg_mode") == "GOOGLE_FORM":
-        sync_google_form_responses(meta, meta.get("tz_name", "Asia/Kolkata"))
-
     roster_records = GSheetsDatabase.get_or_create_worksheet(
         meta["company"], meta["date_str"], meta["time_str"], meta["event_type"]
     ).get_all_records()
@@ -168,56 +152,51 @@ if event_param:
                 """,
                 unsafe_allow_html=True
             )
-            st.success("Registration confirmed! A calendar invite (.ics) and joining details have been sent to your email.")
+            st.success("Registration confirmed! Your details have been recorded.")
             if meta.get("join_link"):
                 st.info(f"🔗 **Event Access / Location:** {meta['join_link']}")
         elif guest_status == "DECLINED":
             st.warning("You have declined this invitation.")
         else:
             st.subheader("Registration")
-            st.write(f"You are invited by **{meta['host_name']}** ({meta['company']}). Please register below.")
+            st.write(f"You are invited by **{meta['host_name']}** ({meta['company']}). Please fill out your details below to accept.")
 
-            if meta.get("reg_mode") == "BUILTIN":
-                with st.form("builtin_rsvp_form"):
-                    guest_name = st.text_input("Name *", placeholder="Enter your full name")
-                    guest_email = st.text_input("Email *", value=guest_email_prefill, placeholder="you@example.com")
-                    c1, c2 = st.columns(2)
-                    acc = c1.form_submit_button("✅ Accept Invite", type="primary", use_container_width=True)
-                    dec = c2.form_submit_button("❌ Decline", use_container_width=True)
+            raw_q = str(meta.get("custom_questions", "")).strip()
+            custom_q_list = [q.strip() for q in raw_q.split(",") if q.strip()] if meta.get("reg_mode") == "CUSTOM_FORM" else []
 
-                    if acc:
-                        if not guest_name.strip() or "@" not in guest_email:
-                            st.error("Please enter both your Name and a valid Email.")
-                        else:
-                            GSheetsDatabase.write_participant_state(
-                                meta["company"], meta["date_str"], meta["time_str"],
-                                meta["event_type"], guest_email.strip(), "ACCEPTED", tz_name=meta["tz_name"]
-                            )
-                            if hasattr(GmailDispatcher, "dispatch_confirmation"):
-                                GmailDispatcher.dispatch_confirmation(
-                                    guest_email.strip(), meta["company"], meta["event_title"],
-                                    meta["date_str"], meta["time_str"], meta["event_type"],
-                                    meta["join_link"], tz_name=meta["tz_name"]
-                                )
-                            st.session_state["just_accepted"] = True
-                            st.rerun()
-                    if dec and "@" in guest_email:
-                        GSheetsDatabase.write_participant_state(
-                            meta["company"], meta["date_str"], meta["time_str"],
-                            meta["event_type"], guest_email.strip(), "DECLINED", tz_name=meta["tz_name"]
-                        )
-                        st.rerun()
-            else:
+            with st.form("dynamic_rsvp_form"):
+                st.markdown("**Your Info**")
+                guest_name = st.text_input("Full Name *", placeholder="Enter your full name")
+                guest_email = st.text_input("Email *", value=guest_email_prefill, placeholder="you@example.com")
+
+                custom_answers = {}
+                for q_label in custom_q_list:
+                    custom_answers[q_label] = st.text_input(f"{q_label} *", placeholder=f"Enter {q_label}")
+
                 c1, c2 = st.columns(2)
-                c1.link_button("📝 Accept Invite & Fill Form", url=meta.get("google_form_url", ""), type="primary", use_container_width=True)
-                if c2.button("❌ Decline Invite", use_container_width=True) and guest_email_prefill:
+                acc = c1.form_submit_button("✅ Accept Invite", type="primary", use_container_width=True)
+                dec = c2.form_submit_button("❌ Decline", use_container_width=True)
+
+                if acc:
+                    missing_custom = [k for k, v in custom_answers.items() if not v.strip()]
+                    if not guest_name.strip() or "@" not in guest_email or missing_custom:
+                        st.error("Please fill in all required (*) fields before accepting.")
+                    else:
+                        save_guest_registration_details(meta, guest_email.strip(), guest_name.strip(), custom_answers)
+                        if hasattr(GmailDispatcher, "dispatch_confirmation") and meta.get("join_link"):
+                            GmailDispatcher.dispatch_confirmation(
+                                guest_email.strip(), meta["company"], meta["event_title"],
+                                meta["date_str"], meta["time_str"], meta["event_type"],
+                                meta["join_link"], tz_name=meta["tz_name"]
+                            )
+                        st.session_state["just_accepted"] = True
+                        st.rerun()
+
+                if dec and "@" in guest_email:
                     GSheetsDatabase.write_participant_state(
                         meta["company"], meta["date_str"], meta["time_str"],
-                        meta["event_type"], guest_email_prefill, "DECLINED", tz_name=meta["tz_name"]
+                        meta["event_type"], guest_email.strip(), "DECLINED", tz_name=meta["tz_name"]
                     )
-                    st.rerun()
-                if st.button("🔄 Refresh Registration Status"):
-                    sync_google_form_responses(meta, meta["tz_name"])
                     st.rerun()
 
         st.divider()
@@ -282,27 +261,21 @@ if selected_page == "🆕 Launch Campaign Portal":
     )
 
     st.divider()
-    st.subheader("📋 Registration Workflow Selection")
+    st.subheader("📋 Automatic Registration Form Setup")
     reg_choice = st.radio(
-        "Choose how guests register when they click 'Accept Invite':",
+        "Choose what guests fill out before accepting the invite:",
         options=[
-            "Option 1: Built-in Quick Registration (Name & Email on Event Page)",
-            "Option 2: Custom Google Form Registration (External Google Form)"
+            "Option 1: Standard Registration (Name & Email only)",
+            "Option 2: Custom Registration Form (Add custom questions automatically)"
         ],
         index=0
     )
 
-    google_form_url = ""
-    form_sheet_tab = ""
+    custom_questions = ""
     if "Option 2" in reg_choice:
-        gf1, gf2 = st.columns(2)
-        google_form_url = gf1.text_input(
-            "Paste Event Google Form URL *:",
-            placeholder="https://google.com"
-        )
-        form_sheet_tab = gf2.text_input(
-            "Linked Form Responses Tab Name in Master Sheet *:",
-            placeholder="e.g., Form Responses 1"
+        custom_questions = st.text_input(
+            "Enter Custom Questions (comma-separated — Name & Email are already included):",
+            placeholder="e.g., Company Name, Job Title, Phone Number, Years of Experience"
         )
 
     uploaded_files = st.file_uploader(
@@ -315,8 +288,8 @@ if selected_page == "🆕 Launch Campaign Portal":
             st.error("Please fill in Company Name, Event Title, and Recipient Emails.")
             st.stop()
 
-        if "Option 2" in reg_choice and not google_form_url:
-            st.error("Please paste the Google Form URL for Option 2.")
+        if "Option 2" in reg_choice and not custom_questions.strip():
+            st.error("Please enter at least one custom question for Option 2.")
             st.stop()
 
         try:
@@ -330,7 +303,7 @@ if selected_page == "🆕 Launch Campaign Portal":
             d_str = event_date.strftime("%Y-%m-%d")
             t_str = event_time.strftime("%H:%M")
             campaign_id = f"{company.strip().lower().replace(' ', '_')}_{d_str}_{t_str.replace(':', '-')}_{event_type.lower()}"
-            reg_mode_code = "GOOGLE_FORM" if "Option 2" in reg_choice else "BUILTIN"
+            reg_mode_code = "CUSTOM_FORM" if "Option 2" in reg_choice else "BUILTIN"
 
             save_campaign_metadata({
                 "campaign_id": campaign_id,
@@ -345,8 +318,7 @@ if selected_page == "🆕 Launch Campaign Portal":
                 "cover_url": cover_url.strip(),
                 "join_link": "",
                 "reg_mode": reg_mode_code,
-                "google_form_url": google_form_url.strip(),
-                "form_sheet_tab": form_sheet_tab.strip()
+                "custom_questions": custom_questions.strip()
             })
 
             GSheetsDatabase.get_or_create_worksheet(company, d_str, t_str, event_type)
@@ -368,7 +340,7 @@ if selected_page == "🆕 Launch Campaign Portal":
                         recipient, company, d_str, t_str, event_type, uploaded_files,
                         tz_name=active_tz, event_title=event_title,
                         event_page_url=guest_event_url,
-                        accept_url=google_form_url.strip() if reg_mode_code == "GOOGLE_FORM" else guest_event_url
+                        accept_url=guest_event_url
                     )
                 except TypeError:
                     GmailDispatcher.dispatch_invite(
@@ -387,30 +359,39 @@ if selected_page == "🆕 Launch Campaign Portal":
             st.error(f"Application flow interruption fault caught: {str(error)}")
 elif selected_page == "📊 Cloud Database Roster Tracker":
     st.subheader("📊 Google Sheets Synchronization & Roster Visualiser")
-    st.markdown("Click **Sync & Pull Roster** to fetch new Gmail replies, sync Google Form responses, and view live attendance.")
+    st.markdown("Select your campaign from the dropdown below and click **Sync & Pull Roster**.")
 
-    c1, c2, c3, c4 = st.columns(4)
-    sc = c1.text_input("Filter Company Name Key:", value="infosys")
-    sd = c2.text_input("Filter Date Matrix (YYYY-MM-DD):", value=current_local_now.strftime("%Y-%m-%d"))
-    st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
-    sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
+    all_campaigns = get_metadata_worksheet().get_all_records()
 
-    campaign_id = f"{sc.strip().lower().replace(' ', '_')}_{sd}_{st_t.replace(':', '-')}_{sty.lower()}"
+    if all_campaigns:
+        campaign_map = {
+            f"{c['event_title']} — {c['company']} ({c['date_str']} {c['time_str']} | {c['event_type']})": c
+            for c in all_campaigns
+        }
+        selected_label = st.selectbox("📂 Select Active Campaign:", options=list(campaign_map.keys()))
+        chosen_meta = campaign_map[selected_label]
 
-    if st.button("🔄 Sync Inbox, Forms & Pull Roster Sheet Data", type="primary"):
-        with st.spinner("Syncing Gmail RSVPs, Google Form submissions & loading Roster..."):
+        sc = chosen_meta["company"]
+        sd = chosen_meta["date_str"]
+        st_t = chosen_meta["time_str"]
+        sty = chosen_meta["event_type"]
+    else:
+        st.info("No saved campaigns found yet. Enter tab parameters manually below:")
+        c1, c2, c3, c4 = st.columns(4)
+        sc = c1.text_input("Filter Company Name Key:", value="Infosys")
+        sd = c2.text_input("Filter Date Matrix (YYYY-MM-DD):", value=current_local_now.strftime("%Y-%m-%d"))
+        st_t = c3.text_input("Filter Time String (HH:MM):", value="14:30")
+        sty = c4.selectbox("Filter Operational Type Map:", ["Virtual", "Walk-in"])
+        chosen_meta = None
+
+    if st.button("🔄 Sync Inbox & Pull Roster Sheet Data", type="primary"):
+        with st.spinner("Syncing Gmail RSVPs & loading Roster..."):
             try:
                 logs = GmailListener.poll_and_sync_rsvps(default_tz=active_tz)
                 if logs:
                     for log_entry in logs:
                         st.toast(log_entry, icon="✅")
                     st.success(f"Inbox synced! Processed {len(logs)} email RSVP response(s).")
-
-                meta = load_campaign_metadata(campaign_id)
-                if meta and meta.get("reg_mode") == "GOOGLE_FORM":
-                    form_updates = sync_google_form_responses(meta, active_tz)
-                    if form_updates > 0:
-                        st.success(f"Google Form synced! Confirmed {form_updates} new registration(s).")
 
                 worksheet = GSheetsDatabase.get_or_create_worksheet(sc, sd, st_t, sty)
                 raw_matrix = worksheet.get_all_records()
@@ -437,8 +418,7 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
     st.subheader("📩 Post-Registration: Send Joining Link & Calendar Invite (.ics)")
     st.markdown("Add the meeting link or venue address below and send the final confirmation email with `.ics` attachment to all **ACCEPTED** guests.")
 
-    meta_current = load_campaign_metadata(campaign_id)
-    existing_join_link = meta_current.get("join_link", "") if meta_current else ""
+    existing_join_link = chosen_meta.get("join_link", "") if chosen_meta else ""
     final_join_link = st.text_input(
         "Meeting Join Link or Venue Address:",
         value=existing_join_link,
@@ -446,13 +426,13 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
     )
 
     if st.button("📨 Send Confirmation + .ics Calendar Invite to Accepted Guests"):
-        if not meta_current:
-            st.error("Campaign metadata not found. Please check the Company, Date, Time, and Format filters above.")
+        if not chosen_meta:
+            st.error("Campaign metadata not found.")
         elif not final_join_link.strip():
             st.error("Please enter the Meeting Join Link or Venue Address first.")
         else:
-            meta_current["join_link"] = final_join_link.strip()
-            save_campaign_metadata(meta_current)
+            chosen_meta["join_link"] = final_join_link.strip()
+            save_campaign_metadata(chosen_meta)
 
             worksheet = GSheetsDatabase.get_or_create_worksheet(sc, sd, st_t, sty)
             accepted_guests = [
@@ -467,9 +447,9 @@ elif selected_page == "📊 Cloud Database Roster Tracker":
                 for guest_email in accepted_guests:
                     if hasattr(GmailDispatcher, "dispatch_confirmation"):
                         GmailDispatcher.dispatch_confirmation(
-                            guest_email, meta_current["company"], meta_current["event_title"],
-                            meta_current["date_str"], meta_current["time_str"], meta_current["event_type"],
-                            final_join_link.strip(), tz_name=meta_current.get("tz_name", active_tz)
+                            guest_email, chosen_meta["company"], chosen_meta["event_title"],
+                            chosen_meta["date_str"], chosen_meta["time_str"], chosen_meta["event_type"],
+                            final_join_link.strip(), tz_name=chosen_meta.get("tz_name", active_tz)
                         )
                         sent_count += 1
                 if sent_count > 0:
