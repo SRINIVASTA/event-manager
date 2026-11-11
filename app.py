@@ -106,6 +106,7 @@ def sync_google_form_responses(meta: dict, default_tz: str) -> int:
         return updated
     except Exception:
         return 0
+
 event_param = st.query_params.get("event", None)
 if event_param:
     st.markdown(
