@@ -1,8 +1,23 @@
-# ✉️ Uttaram — Enterprise Event Communications Engine (Localhost Edition)
+# ✉️ Uttaram — Enterprise Event Communications & RSVP Engine
 
-An automated event invitation, calendar dispatch, and live RSVP tracking web server running locally on **`http://localhost:8000`** using **FastAPI**, **Gmail SMTP/IMAP**, and **Google Sheets APIs**.
+**Uttaram** is an automated, cloud-ready event invitation, dynamic guest registration, and live RSVP tracking application built with **Streamlit**, **Gmail SMTP/IMAP**, and the **Google Sheets API**.
 
-Uttaram sends responsive HTML event invitations with timezone-aware `.ics` calendar attachments, logs initial guest states in Google Sheets, and automatically synchronizes inbound email RSVP confirmations (`ACCEPTED` / `DECLINED`) in the background every 60 seconds.
+---
+
+## ✨ Key Features
+
+- **Dual-Mode Streamlit Portal**:
+  - **Admin Workspace**: Private organizer dashboard with two navigation views (**Launch Campaign Portal** and **Cloud Database Roster Tracker**) plus multi-timezone support (`IST`, `EST`, `PST`, `GMT`, `GST`, `SGT`, `AEST`, `UTC`).
+  - **Guest Event Landing Page (`?event=<campaign_id>`)**: Automatically hides the admin sidebar to render a clean, branded event page with cover banner, organizer info, live **Going** counter, formatted agenda, and instant registration.
+- **Two Flexible Registration Modes**:
+  - **Option 1 (Standard Registration)**: Collects `Full Name` and `Email` directly on the Event Page.
+  - **Option 2 (Custom Registration Form)**: Automatically generates custom input fields (e.g., `Company Name`, `Job Title`, `Phone Number`) and dynamically appends matching columns to your Google Sheet roster tab.
+- **Two-Stage Email & Calendar Workflow**:
+  1. **Initial Invitation (`invite_template.html`)**: Sends a branded HTML email with **✓ Accept Invite**, **View Event**, and **✕ Decline** actions while keeping private meeting links hidden.
+  2. **Post-Registration Confirmation (`.ics`)**: After registration, dispatches a **"Registration confirmed"** email containing the private **Meeting Join Link / Venue Address** and a timezone-aware **`.ics` calendar attachment**.
+- **Automated Google Sheets Database (`gspread`)**:
+  - Stores event configurations in `Campaigns_Metadata_00-00_config`.
+  - Provisions isolated per-event roster tabs (`{company}_{date}_{time}_{type}`) with case-insensitive lookup and real-time RSVP status tracking (`PENDING`, `ACCEPTED`, `DECLINED`).
 
 ---
 
@@ -10,135 +25,109 @@ Uttaram sends responsive HTML event invitations with timezone-aware `.ics` calen
 
 ```mermaid
 flowchart TD
-    subgraph UI["🖥️ Localhost Web Portal (http://localhost:8000)"]
-        TZ["🌍 Regional Timezone Selector\n(IST, EST, PST, GMT, etc.)"]
-        T1["🆕 Launch Campaign Portal (/send)"]
-        T2["📊 Cloud Database Roster Tracker (/roster)"]
-        BG["⏱️ Async Background Worker\n(Auto-Syncs Gmail Every 60s)"]
+    subgraph Admin["🧑‍💼 Organizer Admin Portal (Streamlit)"]
+        A1["🆕 Launch Campaign Portal"]
+        A2["📊 Cloud Database Roster Tracker"]
     end
 
-    subgraph CORE["⚙️ Core Configuration & Local Secrets"]
-        CFG["SystemConfig (config.py)"]
-        ENV[".env & service_account.json\n(Gmail App Password & GCP JSON Key)"]
+    subgraph Guest["🎟️ Public Guest Experience"]
+        G1["📧 Branded HTML Invite Email"]
+        G2["🌐 Event Landing Page (?event=ID)"]
+        G3["✅ 'You're In' Confirmation Card"]
     end
 
-    subgraph SERVICES["🔌 Integration Services"]
-        DISP["GmailDispatcher\n(SMTP + HTML + .ics)"]
-        LIST["GmailListener\n(IMAP Subject Parser)"]
-        DB["GSheetsDatabase\n(gspread Service Account)"]
+    subgraph Cloud["☁️ Backend & Cloud Services"]
+        S1["📊 Google Sheets API (Metadata & Event Rosters)"]
+        S2["📤 Gmail SMTP (Invites & .ics Confirmations)"]
+        S3["📥 Gmail IMAP (Email Decline/RSVP Listener)"]
     end
 
-    subgraph EXTERNAL["☁️ External Cloud & Email Infrastructure"]
-        SMTP["Gmail SMTP Server\n(://gmail.com)"]
-        IMAP["Gmail IMAP Inbox\n(://gmail.com)"]
-        GUEST["👤 Invited Guest Inbox"]
-        GSHEET["📗 Master Google Spreadsheet\n(Dynamic Event Tabs)"]
-    end
-
-    ENV --> CFG
-    TZ --> T1 & T2
-    CFG --> DISP & LIST & DB
-
-    T1 -->|"1. Create Tab & Log PENDING"| DB
-    T1 -->|"2. Dispatch Invites"| DISP
-    DB --> GSHEET
-    DISP --> SMTP --> GUEST
-
-    GUEST -->|"3. Click Accept / Decline (mailto:)"| IMAP
-    BG -->|"4a. Auto-Poll Every 60s"| LIST
-    T2 -->|"4b. Manual Sync & Pull Roster"| LIST
-    LIST --> IMAP
-    LIST -->|"5. Update ACCEPTED / DECLINED"| DB
-    DB -->|"6. Render Live Metrics & Table"| T2
+    A1 -- "1. Save Event Config & Create Tab" --> S1
+    A1 -- "2. Dispatch Initial Invites" --> S2
+    S2 --> G1
+    G1 -- "3. Click Accept / View Event" --> G2
+    G2 -- "4. Submit Standard or Custom Form" --> S1
+    G2 --> G3
+    A2 -- "5. Poll Inbox & Pull Live Roster" --> S3
+    S3 --> S1
+    A2 -- "6. Send Joining Link + .ics Calendar" --> S2
 ```
 
 ---
 
-## 🔄 End-to-End RSVP Lifecycle
+## 🔄 End-to-End RSVP & Confirmation Lifecycle
 
 ```mermaid
 sequenceDiagram
-    actor Organizer as Event Organizer (Localhost)
-    participant Server as Uttaram FastAPI Server (:8000)
-    participant Sheets as Google Sheets API
-    participant Gmail as Gmail (SMTP / IMAP)
-    actor Guest as Invited Attendee
+    actor Organizer
+    participant App as Streamlit App (app.py)
+    participant Sheets as Google Sheets
+    participant Gmail as Gmail SMTP / IMAP
+    actor Guest
 
-    Organizer->>Server: Submit Campaign Form at http://localhost:8000
-    Server->>Sheets: Create Event Tab (e.g., infosys_2026-11-11_14-30_virtual)
-    loop For Each Recipient
-        Server->>Sheets: Append Row (Email, PENDING, Local Timestamp)
-        Server->>Gmail: Send Uttaram HTML Card + .ics Invite via SMTP
-        Gmail-->>Guest: Deliver Invitation Email
-    end
+    Organizer->>App: Configure Event & Choose Registration Mode (Option 1 or 2)
+    App->>Sheets: Save Metadata & Create Event Roster Tab (PENDING)
+    App->>Gmail: Send Initial Branded Invite (Accept / View / Decline)
+    Gmail-->>Guest: Delivers Invitation Email
 
-    Guest->>Gmail: Click "✓ Accept Invite" or "✕ Decline" (Sends RSVP Subject)
-    Note over Server,Gmail: Background worker polls IMAP every 60s automatically
-    Server->>Gmail: Fetch Inbound Emails with "RSVP " Subject
-    Gmail-->>Server: Return Matching Guest Replies
-    Server->>Sheets: Update Row Status (PENDING ➔ ACCEPTED / DECLINED)
-    Organizer->>Server: Click "🔄 Sync Inbox & Pull Roster Sheet Data"
-    Sheets-->>Organizer: Display Updated Attendance Metrics & Table
+    Guest->>App: Clicks "View Event" or "Accept Invite" (?event=ID)
+    App->>Sheets: Fetch Event Metadata & Live "Going" Count
+    App-->>Guest: Render Branded Event Page & Registration Form
+
+    Guest->>App: Submits Name, Email & Custom Answers
+    App->>Sheets: Update Status to ACCEPTED & Save Custom Columns
+    App-->>Guest: Display "✓ You’re In" Confirmation Screen
+
+    Organizer->>App: Enter Meeting Link / Venue in Roster Tracker
+    App->>Gmail: Dispatch "Registration Confirmed" + .ics Attachment
+    Gmail-->>Guest: Delivers Calendar Invite & Access Link
 ```
-
----
-
-## ✨ Key Features
-
-* **Standalone Localhost Web Server**: Runs directly on `http://localhost:8000` via FastAPI and Uvicorn with zero third-party cloud hosting dependencies.
-* **Hands-Free 60-Second Background Sync**: Includes an asynchronous background worker that continuously polls your Gmail inbox every 60 seconds and updates Google Sheets automatically.
-* **Uttaram Branded HTML Invitations**: Responsive, table-based email cards with gradient banners, structured event metadata, and one-click `mailto:` RSVP action buttons.
-* **Timezone-Aware `.ics` Calendar Invites**: Uses Python's `zoneinfo` module to generate accurate local timestamps for **India (`Asia/Kolkata`)**, **USA (`America/New_York`, `America/Los_Angeles`, etc.)**, **UK**, **UAE**, **Singapore**, and **Australia**.
-* **Automated Google Sheets Provisioning**: Dynamically creates and manages individual worksheet tabs per campaign (`{company}_{date}_{time}_{type}`) without overwriting past events.
-* **Multi-File Attachments**: Supports attaching PDFs, agendas, or onboarding guides alongside the `.ics` calendar file.
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-uttaram-localhost/
-├── main.py                             # FastAPI server & background RSVP sync worker
-├── .env                                # Local environment variables (Gmail & Sheet ID)
-├── service_account.json                # Google Cloud Service Account credentials JSON
-├── requirements.txt                    # Python dependencies
-├── README.md                           # Project documentation
+event-manager/
+├── app.py                              # Unified Streamlit Admin & Guest Event Portal
+├── requirements.txt                    # Python dependencies (streamlit, gspread, ics, pandas)
+├── README.md                           # Project documentation & architecture diagrams
 └── src/
     ├── core/
-    │   ├── config.py                   # Loads .env & service_account.json
-    │   └── exceptions.py               # Custom domain exceptions
+    │   ├── config.py                   # Streamlit Secrets configuration loader
+    │   └── exceptions.py               # Custom application exception classes
     ├── services/
-    │   ├── gmail_dispatcher.py         # SMTP email & .ics calendar generator
-    │   ├── gmail_listener.py           # IMAP reply parser & RSVP synchronizer
-    │   └── gsheets_database.py         # Google Sheets API wrapper (gspread)
+    │   ├── gsheets_database.py         # Google Sheets tab & participant state manager
+    │   ├── gmail_dispatcher.py         # SMTP HTML email & .ics calendar generator
+    │   └── gmail_listener.py           # IMAP inbox RSVP parser
     └── templates/
-        ├── index.html                  # Localhost web portal interface
-        └── invite_template.html        # Responsive Uttaram HTML email template
+        └── invite_template.html        # Responsive HTML invitation email template
 ```
 
 ---
 
-## 🚀 Localhost Setup & Installation
+## 🚀 Quick Start & Configuration
 
-### 1. Clone & Install Dependencies
+### 1. Install Dependencies
 ```bash
-git clone <your-repository-url>
-cd uttaram-localhost
+git clone https://github.com
+cd event-manager
 pip install -r requirements.txt
 ```
 
-```
-
-### 2. Start the Localhost Server
+### 2. Run Locally
 ```bash
-uvicorn main:app --reload --port 8000
+streamlit run app.py
 ```
-Open your browser and navigate to **`http://localhost:8000`**.
 
 ---
 
-## 🛠️ Usage Guide
+## 📋 Usage Guide
 
-1. **Select Region / Timezone**: Choose your active region at the top of `http://localhost:8000` (defaults to **India `IST - Asia/Kolkata`**).
-2. **Launch Campaign**: Under **🆕 Launch Campaign Portal**, enter the company/program name, date, time, format (`Virtual` or `Walk-in`), and recipient email addresses, then click **🚀 Authorise Workspace & Send Invitations**.
-3. **Track Live Attendance**: Replies are synced automatically in the background every 60 seconds, or you can click **🔄 Sync Inbox & Pull Roster Sheet Data** under **📊 Cloud Database Roster Tracker** to refresh the table immediately.
+1. **Launch a Campaign**:
+   - Open **🆕 Launch Campaign Portal**, select your active timezone, and fill in the **Organization Name**, **Host Name**, **Event Title**, **Date/Time**, and **About Event** agenda.
+   - Choose **Option 1** (Name & Email only) or **Option 2** (add custom comma-separated questions).
+   - Enter recipient email addresses and click **🚀 Authorise Workspace & Send Invitations**.
+2. **Track RSVPs & Send Joining Links**:
+   - Open **📊 Cloud Database Roster Tracker**, select your campaign from the dropdown, and click **🔄 Sync Inbox & Pull Roster Sheet Data**.
+   - Enter the **Meeting Join Link or Venue Address** and click **📨 Send Confirmation + .ics Calendar Invite to Accepted Guests**.
