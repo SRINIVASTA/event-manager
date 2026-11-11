@@ -224,6 +224,171 @@ if event_param:
         st.subheader("About Event")
         st.markdown(meta.get("about_event", ""))
     st.stop()
+with st.sidebar:
+    st.title("✉️ Uttaram")
+    st.caption("Enterprise Event Communications Engine")
+    st.divider()
+
+    selected_page = st.radio(
+        "🧭 Workspace Navigation",
+        options=["🆕 Launch Campaign Portal", "📊 Cloud Database Roster Tracker"],
+        index=0
+    )
+
+    st.divider()
+
+    selected_tz_label = st.selectbox(
+        "🌍 Active Region / Timezone",
+        options=list(TIMEZONE_OPTIONS.keys()),
+        index=0
+    )
+    active_tz = TIMEZONE_OPTIONS[selected_tz_label]
+    current_local_now = datetime.datetime.now(ZoneInfo(active_tz))
+
+    st.info(f"🕒 **Local Time:**\n\n`{current_local_now.strftime('%Y-%m-%d %H:%M:%S %Z')}`")
+    st.divider()
+    st.caption("Powered by Uttaram Event Engine")
+
+st.title("✉️ Uttaram — Enterprise Event Communications Engine")
+st.markdown("Automate branded invitations, custom registration workflows, and live RSVP tracking to Google Sheets.")
+st.divider()
+
+if selected_page == "🆕 Launch Campaign Portal":
+    st.subheader("🆕 Initialise Program Communications Configuration")
+
+    col_left, col_right = st.columns(2)
+    with col_left:
+        company = st.text_input("Organization / Company Name:", placeholder="e.g., Infosys")
+        host_name = st.text_input("Hosted By (Organizer Name):", placeholder="e.g., Srinivas T A")
+        event_title = st.text_input("Event Title:", placeholder="e.g., Enterprise AI Agents Workshop")
+        event_date = st.date_input("Target Execution Date:", value=current_local_now.date())
+        event_time = st.time_input("Target Execution Time:", value=datetime.time(14, 30))
+
+    with col_right:
+        event_type = st.selectbox("Access Medium Format:", ["Virtual", "Walk-in"])
+        portal_base_url = st.text_input("Event Portal Base URL:", value="https://streamlit.app")
+        join_link = st.text_input(
+            "Meeting Join Link or Venue Address (Sent ONLY after registration):",
+            placeholder="https://google.com"
+        )
+        cover_url = st.text_input("Event Cover Image URL (Optional):", placeholder="https://...")
+        receivers_input = st.text_area(
+            "Intended Recipient Email List (separate by commas or new lines):",
+            height=105,
+            placeholder="candidate1@gmail.com, candidate2@gmail.com"
+        )
+
+    about_event = st.text_area(
+        "About Event (Agenda & Description shown on Event Page):",
+        height=110,
+        placeholder="Describe session highlights, speakers, and agenda..."
+    )
+
+    st.divider()
+    st.subheader("📋 Registration Workflow Selection")
+    reg_choice = st.radio(
+        "Choose how guests register when they click 'Accept Invite':",
+        options=[
+            "Option 1: Built-in Quick Registration (Name & Email on Event Page)",
+            "Option 2: Custom Google Form Registration (External Google Form)"
+        ],
+        index=0
+    )
+
+    google_form_url = ""
+    form_sheet_tab = ""
+    if "Option 2" in reg_choice:
+        gf1, gf2 = st.columns(2)
+        google_form_url = gf1.text_input(
+            "Paste Event Google Form URL *:",
+            placeholder="https://google.com"
+        )
+        form_sheet_tab = gf2.text_input(
+            "Linked Form Responses Tab Name in Master Sheet *:",
+            placeholder="e.g., Form Responses 1"
+        )
+
+    uploaded_files = st.file_uploader(
+        "Upload additional supporting materials/documents (Optional)",
+        accept_multiple_files=True
+    )
+
+    if st.button("🚀 Authorise Workspace & Send Invitations", type="primary"):
+        if not company or not event_title or not receivers_input:
+            st.error("Please fill in Company Name, Event Title, and Recipient Emails.")
+            st.stop()
+
+        if "Option 2" in reg_choice and not google_form_url:
+            st.error("Please paste the Google Form URL for Option 2.")
+            st.stop()
+
+        try:
+            raw_tokens = receivers_input.replace("\n", ",").split(",")
+            clean_recipients = [r.strip() for r in raw_tokens if "@" in r]
+
+            if not clean_recipients:
+                st.error("No valid email addresses containing '@' were found.")
+                st.stop()
+
+            d_str = event_date.strftime("%Y-%m-%d")
+            t_str = event_time.strftime("%H:%M")
+            campaign_id = f"{company.strip().lower().replace(' ', '_')}_{d_str}_{t_str.replace(':', '-')}_{event_type.lower()}"
+            reg_mode_code = "GOOGLE_FORM" if "Option 2" in reg_choice else "BUILTIN"
+
+            save_campaign_metadata({
+                "campaign_id": campaign_id,
+                "company": company.strip(),
+                "host_name": host_name.strip() or company.strip(),
+                "event_title": event_title.strip(),
+                "date_str": d_str,
+                "time_str": t_str,
+                "event_type": event_type,
+                "tz_name": active_tz,
+                "about_event": about_event.strip(),
+                "cover_url": cover_url.strip(),
+                "join_link": join_link.strip(),
+                "reg_mode": reg_mode_code,
+                "google_form_url": google_form_url.strip(),
+                "form_sheet_tab": form_sheet_tab.strip()
+            })
+
+            GSheetsDatabase.get_or_create_worksheet(company, d_str, t_str, event_type)
+
+            ui_progress = st.progress(0)
+            ui_status = st.empty()
+
+            for index, recipient in enumerate(clean_recipients):
+                ui_status.text(f"Processing registration & dispatching invite for: {recipient}")
+
+                GSheetsDatabase.write_participant_state(
+                    company, d_str, t_str, event_type, recipient, "PENDING", tz_name=active_tz
+                )
+
+                guest_event_url = f"{portal_base_url.rstrip('/')}/?{urlencode({'event': campaign_id, 'email': recipient})}"
+
+                try:
+                    GmailDispatcher.dispatch_invite(
+                        recipient, company, d_str, t_str, event_type, uploaded_files,
+                        tz_name=active_tz, event_title=event_title,
+                        event_page_url=guest_event_url,
+                        accept_url=google_form_url.strip() if reg_mode_code == "GOOGLE_FORM" else guest_event_url
+                    )
+                except TypeError:
+                    GmailDispatcher.dispatch_invite(
+                        recipient, company, d_str, t_str, event_type, uploaded_files, tz_name=active_tz
+                    )
+
+                ui_progress.progress((index + 1) / len(clean_recipients))
+                if len(clean_recipients) > 1:
+                    time.sleep(1.0)
+
+            ui_status.empty()
+            st.success(f"Successfully deployed {len(clean_recipients)} invitations in {active_tz}! 🚀")
+            st.info(f"🔗 **Preview Guest Event Page:** [{portal_base_url.rstrip('/')}/?event={campaign_id}]({portal_base_url.rstrip('/')}/?event={campaign_id})")
+
+        except EventManagerException as error:
+            st.error(f"Application flow interruption fault caught: {str(error)}")
+
 elif selected_page == "📊 Cloud Database Roster Tracker":
     st.subheader("📊 Google Sheets Synchronization & Roster Visualiser")
     st.markdown("Click **Sync & Pull Roster** to fetch new Gmail replies, sync Google Form responses, and view live attendance.")
