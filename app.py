@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import datetime
+import base64
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 from src.core.config import SystemConfig
@@ -203,6 +204,7 @@ if event_param:
         st.subheader("About Event")
         st.markdown(meta.get("about_event", ""))
     st.stop()
+
 with st.sidebar:
     st.title("✉️ Uttaram")
     st.caption("Enterprise Event Communications Engine")
@@ -240,13 +242,11 @@ if selected_page == "🆕 Launch Campaign Portal":
         company = st.text_input("Organization / Company Name:", placeholder="e.g., Infosys")
         host_name = st.text_input("Hosted By (Organizer Name):", placeholder="e.g., Srinivas T A")
         event_title = st.text_input("Event Title:", placeholder="e.g., Enterprise AI Agents Workshop")
-        event_date = st.date_input("Target Execution Date:", value=current_local_now.date())
 
     with col_right:
+        event_date = st.date_input("Target Execution Date:", value=current_local_now.date())
         event_time = st.time_input("Target Execution Time:", value=datetime.time(14, 30))
         event_type = st.selectbox("Access Medium Format:", ["Virtual", "Walk-in"])
-        portal_base_url = st.text_input("Event Portal Base URL:", value="https://streamlit.app")
-        cover_url = st.text_input("Event Cover Image URL (Optional):", placeholder="https://...")
 
     receivers_input = st.text_area(
         "Intended Recipient Email List (separate by commas or new lines):",
@@ -259,6 +259,29 @@ if selected_page == "🆕 Launch Campaign Portal":
         height=110,
         placeholder="Describe session highlights, speakers, and agenda..."
     )
+
+    with st.expander("🖼️ Cover Image & Custom Event Page URL (Optional)"):
+        cover_mode = st.radio(
+            "Event Cover Image Source:",
+            options=["None", "Upload Image File", "Paste Image URL"],
+            horizontal=True
+        )
+        cover_url = ""
+        if cover_mode == "Upload Image File":
+            cover_file = st.file_uploader("Upload Banner Image (PNG/JPG):", type=["png", "jpg", "jpeg", "webp"])
+            if cover_file is not None:
+                b64_str = base64.b64encode(cover_file.read()).decode("utf-8")
+                cover_url = f"data:{cover_file.type};base64,{b64_str}"
+                st.image(cover_file, caption="Cover Image Preview", width=260)
+        elif cover_mode == "Paste Image URL":
+            cover_url = st.text_input("Event Cover Image URL:", placeholder="https://example.com")
+
+        default_portal_url = st.secrets.get("portal_base_url", "")
+        portal_base_url = st.text_input(
+            "Event Page Web App URL (Auto-loaded from Secrets if configured):",
+            value=default_portal_url,
+            placeholder="https://google.com"
+        )
 
     st.divider()
     st.subheader("📋 Automatic Registration Form Setup")
@@ -333,7 +356,8 @@ if selected_page == "🆕 Launch Campaign Portal":
                     company, d_str, t_str, event_type, recipient, "PENDING", tz_name=active_tz
                 )
 
-                guest_event_url = f"{portal_base_url.rstrip('/')}/?{urlencode({'event': campaign_id, 'email': recipient})}"
+                clean_base = portal_base_url.strip().rstrip("/")
+                guest_event_url = f"{clean_base}?{urlencode({'event': campaign_id, 'email': recipient})}" if clean_base else ""
 
                 try:
                     GmailDispatcher.dispatch_invite(
@@ -353,7 +377,9 @@ if selected_page == "🆕 Launch Campaign Portal":
 
             ui_status.empty()
             st.success(f"Successfully deployed {len(clean_recipients)} invitations in {active_tz}! 🚀")
-            st.info(f"🔗 **Preview Guest Event Page:** [{portal_base_url.rstrip('/')}/?event={campaign_id}]({portal_base_url.rstrip('/')}/?event={campaign_id})")
+            if portal_base_url.strip():
+                preview_link = f"{portal_base_url.strip().rstrip('/')}?event={campaign_id}"
+                st.info(f"🔗 **Preview Guest Event Page:** [{preview_link}]({preview_link})")
 
         except EventManagerException as error:
             st.error(f"Application flow interruption fault caught: {str(error)}")
