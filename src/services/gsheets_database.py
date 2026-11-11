@@ -28,7 +28,7 @@ class GSheetsDatabase:
         client = GSheetsDatabase._get_client(config)
         
         safe_time = time_str.replace(':', '-')
-        tab_name = f"{company}_{date_str}_{safe_time}_{event_type.lower()}"
+        tab_name = f"{company.strip()}_{date_str}_{safe_time}_{event_type.lower()}"
         spreadsheet_id = config.get("spreadsheet_id", "17dOnyfFGfBGytQXS7SU7fnx6svAyeGKKagGI3OJM4ms")
 
         try:
@@ -41,12 +41,13 @@ class GSheetsDatabase:
                     f"{config['gcp_service_account']['client_email']}"
                 )
 
-            try:
-                worksheet = spreadsheet.worksheet(tab_name)
-            except gspread.WorksheetNotFound:
-                worksheet = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="3")
-                worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
-            
+            # Case-insensitive lookup to prevent Google Sheets duplicate tab errors
+            existing_sheets = {ws.title.lower(): ws for ws in spreadsheet.worksheets()}
+            if tab_name.lower() in existing_sheets:
+                return existing_sheets[tab_name.lower()]
+
+            worksheet = spreadsheet.add_worksheet(title=tab_name, rows="1000", cols="10")
+            worksheet.append_row(["Email", "RSVP_Status", "Last_Updated"])
             return worksheet
         except DatabaseError:
             raise
@@ -59,12 +60,11 @@ class GSheetsDatabase:
             worksheet = GSheetsDatabase.get_or_create_worksheet(company, date_str, time_str, event_type)
             records = worksheet.get_all_records()
             
-            # Format current timestamp in the active local timezone (e.g., 2026-11-10 18:32:00 IST)
             local_tz = ZoneInfo(tz_name)
             now = datetime.now(local_tz).strftime("%Y-%m-%d %H:%M:%S %Z")
 
             for idx, row in enumerate(records, start=2):
-                if row['Email'].strip().lower() == email.strip().lower():
+                if str(row.get('Email', '')).strip().lower() == email.strip().lower():
                     worksheet.update_cell(idx, 2, status.upper())
                     worksheet.update_cell(idx, 3, now)
                     return
