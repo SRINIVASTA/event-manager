@@ -202,7 +202,8 @@ if event_param:
 
         st.divider()
         st.subheader("About Event")
-        st.markdown(meta.get("about_event", ""))
+        formatted_about = str(meta.get("about_event", "")).replace("\n", "  \n")
+        st.markdown(formatted_about)
     st.stop()
 
 with st.sidebar:
