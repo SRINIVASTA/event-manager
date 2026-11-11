@@ -1,94 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{COMPANY_NAME}} Event Invitation</title>
+  <meta charset="UTF-8">
+  <title>{{EVENT_TITLE}}</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #131517;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f5f7; padding: 32px 16px;">
-    <tr>
-      <td align="center">
-        <!-- Main Uttaram Event Card -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e6e8ec;">
-          
-          <!-- Top Gradient Cover Banner -->
-          <tr>
-            <td style="background: linear-gradient(135deg, #111827 0%, #312e81 55%, #4f46e5 100%); padding: 32px 32px 28px 32px; text-align: left;">
-              <span style="display: inline-block; background-color: rgba(255, 255, 255, 0.16); color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; margin-bottom: 14px;">
-                Official Invitation
-              </span>
-              <h1 style="margin: 0; font-size: 26px; line-height: 1.25; font-weight: 800; color: #ffffff; letter-spacing: -0.4px;">
-                {{COMPANY_NAME}} Programme
-              </h1>
-              <p style="margin: 8px 0 0 0; font-size: 14px; color: #c7d2fe;">
-                Hosted by {{COMPANY_NAME}} Events Team
-              </p>
-            </td>
-          </tr>
+<body style="font-family: Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;">
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff; padding: 24px 28px;">
+      <p style="margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8;">{{COMPANY_NAME}}</p>
+      <p style="margin: 8px 0 4px 0; font-size: 14px; color: #cbd5e1;">You're invited to</p>
+      <h1 style="margin: 0; font-size: 22px; line-height: 1.3;">{{EVENT_TITLE}}</h1>
+    </div>
 
-          <!-- Event Details Block -->
-          <tr>
-            <td style="padding: 28px 32px 12px 32px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f9fafb; border: 1px solid #eef0f3; border-radius: 12px; padding: 16px;">
-                <tr>
-                  <td style="padding-bottom: 12px; border-bottom: 1px solid #e5e7eb;">
-                    <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px;">Date &amp; Time</div>
-                    <div style="font-size: 15px; font-weight: 600; color: #111827; margin-top: 4px;">
-                      📅 {{DATE}} &nbsp;•&nbsp; 🕒 {{TIME}}
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding-top: 12px;">
-                    <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px;">Location / Access Format</div>
-                    <div style="font-size: 15px; font-weight: 600; color: #111827; margin-top: 4px;">
-                      📍 {{TYPE}} Session
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+    <div style="padding: 28px;">
+      <p style="margin: 0 0 12px 0; font-size: 15px;">📅 <strong>Date:</strong> {{DATE}}</p>
+      <p style="margin: 0 0 12px 0; font-size: 15px;">🕒 <strong>Time:</strong> {{TIME}}</p>
+      <p style="margin: 0 0 24px 0; font-size: 15px;">📍 <strong>Format:</strong> {{TYPE}} Session</p>
 
-          <!-- RSVP Action Buttons -->
-          <tr>
-            <td style="padding: 16px 32px 24px 32px;">
-              <p style="margin: 0 0 16px 0; font-size: 14px; color: #374151; line-height: 1.5;">
-                You are invited to attend this session. Please confirm your registration below—an <strong>.ics calendar invite</strong> is also attached to this email.
-              </p>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                <tr>
-                  <td width="48%" style="padding-right: 6px;">
-                    <a href="{{ACCEPT_LINK}}" style="display: block; text-align: center; background-color: #111827; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 13px 16px; border-radius: 10px;">
-                      ✓ Accept Invite
-                    </a>
-                  </td>
-                  <td width="48%" style="padding-left: 6px;">
-                    <a href="{{DECLINE_LINK}}" style="display: block; text-align: center; background-color: #f3f4f6; color: #374151; border: 1px solid #d1d5db; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 16px; border-radius: 10px;">
-                      ✕ Decline
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+      <p style="margin: 0 0 20px 0; font-size: 14px; color: #475569;">
+        Please complete your registration to confirm your spot and receive the calendar invite &amp; joining link.
+      </p>
 
-          <!-- Uttaram Minimal Footer -->
-          <tr>
-            <td style="background-color: #f9fafb; border-top: 1px solid #eef0f3; padding: 18px 32px; text-align: center;">
-              <p style="margin: 0; font-size: 12px; color: #6b7280; line-height: 1.5;">
-                Clicking <strong>Accept Invite</strong> or <strong>Decline</strong> opens a pre-filled confirmation email. Simply hit <strong>Send</strong> to register your response.
-              </p>
-              <p style="margin: 8px 0 0 0; font-size: 11px; color: #9ca3af; font-weight: 600; letter-spacing: 0.4px;">
-                POWERED BY UTTARAM EVENT ENGINE
-              </p>
-            </td>
-          </tr>
+      <div style="margin-bottom: 24px;">
+        <a href="{{ACCEPT_LINK}}" style="display: inline-block; background-color: #16a34a; color: #ffffff; text-decoration: none; font-weight: bold; padding: 12px 22px; border-radius: 8px; font-size: 14px; margin-right: 10px;">
+          ✓ Accept Invite
+        </a>
+        <a href="{{VIEW_EVENT_LINK}}" style="display: inline-block; background-color: #f1f5f9; color: #0f172a; text-decoration: none; font-weight: bold; padding: 12px 22px; border-radius: 8px; font-size: 14px; border: 1px solid #cbd5e1;">
+          View Event
+        </a>
+      </div>
 
-        </table>
-      </td>
-    </tr>
-  </table>
+      <p style="margin: 0; font-size: 13px; color: #64748b;">
+        Can't make it? <a href="{{DECLINE_LINK}}" style="color: #dc2626; text-decoration: underline;">Decline the invite</a> to stop receiving emails about this event.
+      </p>
+    </div>
+
+    <div style="background-color: #f1f5f9; padding: 14px 28px; text-align: center; font-size: 11px; color: #64748b; letter-spacing: 0.5px;">
+      POWERED BY UTTARAM EVENT ENGINE
+    </div>
+  </div>
 </body>
 </html>
