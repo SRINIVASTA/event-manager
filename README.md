@@ -42,15 +42,27 @@ flowchart TD
         S3["📥 Gmail IMAP (Email Decline/RSVP Listener)"]
     end
 
-    A1 -- "1. Save Event Config & Create Tab" --> S1
-    A1 -- "2. Dispatch Initial Invites" --> S2
-    S2 --> G1
-    G1 -- "3. Click Accept / View Event" --> G2
-    G2 -- "4. Submit Standard or Custom Form" --> S1
-    G2 --> G3
-    A2 -- "5. Poll Inbox & Pull Live Roster" --> S3
-    S3 --> S1
-    A2 -- "6. Send Joining Link + .ics Calendar" --> S2
+    %% Running Data & Communication Flows
+    A1 e1@-->|"1. Save Event Config & Create Tab"| S1
+    A1 e2@-->|"2. Dispatch Initial Invites"| S2
+    S2 e3@--> G1
+    G1 e4@-->|"3. Click Accept / View Event"| G2
+    G2 e5@-->|"4. Submit Standard or Custom Form"| S1
+    G2 e6@--> G3
+    A2 e7@-->|"5. Poll Inbox & Pull Live Roster"| S3
+    S3 e8@--> S1
+    A2 e9@-->|"6. Send Joining Link + .ics Calendar"| S2
+
+    %% Running Flow Animation Definitions
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
+    e5@{ animate: true }
+    e6@{ animate: true }
+    e7@{ animate: true }
+    e8@{ animate: true }
+    e9@{ animate: true }
 ```
 
 ---
@@ -59,28 +71,37 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
+    autonumber
     actor Organizer
     participant App as Streamlit App (app.py)
     participant Sheets as Google Sheets
     participant Gmail as Gmail SMTP / IMAP
     actor Guest
 
+    rect rgb(227, 242, 253)
+    Note right of Organizer: Stage 1: Campaign Creation & Initial Invitation
     Organizer->>App: Configure Event & Choose Registration Mode (Option 1 or 2)
     App->>Sheets: Save Metadata & Create Event Roster Tab (PENDING)
     App->>Gmail: Send Initial Branded Invite (Accept / View / Decline)
     Gmail-->>Guest: Delivers Invitation Email
+    end
 
+    rect rgb(232, 245, 233)
+    Note right of Organizer: Stage 2: Guest Landing & RSVP Registration
     Guest->>App: Clicks "View Event" or "Accept Invite" (?event=ID)
     App->>Sheets: Fetch Event Metadata & Live "Going" Count
     App-->>Guest: Render Branded Event Page & Registration Form
-
     Guest->>App: Submits Name, Email & Custom Answers
     App->>Sheets: Update Status to ACCEPTED & Save Custom Columns
     App-->>Guest: Display "✓ You’re In" Confirmation Screen
+    end
 
+    rect rgb(255, 243, 224)
+    Note right of Organizer: Stage 3: Access Link & Calendar Dispatch
     Organizer->>App: Enter Meeting Link / Venue in Roster Tracker
     App->>Gmail: Dispatch "Registration Confirmed" + .ics Attachment
     Gmail-->>Guest: Delivers Calendar Invite & Access Link
+    end
 ```
 
 ---
