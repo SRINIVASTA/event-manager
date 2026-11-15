@@ -3,6 +3,12 @@
 **Uttaram** is an automated, cloud-ready event invitation, dynamic guest registration, and live RSVP tracking application built with **Streamlit**, **Gmail SMTP/IMAP**, and the **Google Sheets API**.
 
 ---
+
+### ⭐ Show Your Support
+
+If you like the UI design, system architecture, or engineering behind **Uttaram**, please consider giving this repository a **Star ⭐** on GitHub! It helps showcase this work and motivates future builds.
+
+---
 <img src="assets/desktop.png" width="100%" alt="Desktop Preview">
 
 
