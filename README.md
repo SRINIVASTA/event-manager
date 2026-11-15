@@ -157,12 +157,6 @@ streamlit run app.py
 
 This project is intended for personal productivity, event organization, and automated RSVP management. Users are responsible for ensuring compliance with email sending limits (such as Gmail SMTP/IMAP quotas), applicable anti-spam regulations (like CAN-SPAM or GDPR), and Google Workspace API terms of service. Organizers are solely responsible for securing attendee data stored in connected Google Sheets.
 
-## ⭐ Support & Contribution
-
-If you clone, test, or build upon this repository, please consider giving it a **Star (⭐)** on GitHub—it helps others discover the project and supports continued development.
-
-- **Found a bug or have an idea?** Open an [Issue](https://github.com).
-- **Want to improve the code?** Feel free to **Fork** this repository and submit a **Pull Request**.
 ---
 
 ## 🛡️ License, Copyright & Compliance Notices
