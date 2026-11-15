@@ -152,3 +152,33 @@ streamlit run app.py
 2. **Track RSVPs & Send Joining Links**:
    - Open **📊 Cloud Database Roster Tracker**, select your campaign from the dropdown, and click **🔄 Sync Inbox & Pull Roster Sheet Data**.
    - Enter the **Meeting Join Link or Venue Address** and click **📨 Send Confirmation + .ics Calendar Invite to Accepted Guests**.
+
+## ⚠️ Disclaimer
+
+This project is intended for personal productivity, event organization, and automated RSVP management. Users are responsible for ensuring compliance with email sending limits (such as Gmail SMTP/IMAP quotas), applicable anti-spam regulations (like CAN-SPAM or GDPR), and Google Workspace API terms of service. Organizers are solely responsible for securing attendee data stored in connected Google Sheets.
+
+## ⭐ Support & Contribution
+
+If you clone, test, or build upon this repository, please consider giving it a **Star (⭐)** on GitHub—it helps others discover the project and supports continued development.
+
+- **Found a bug or have an idea?** Open an [Issue](https://github.com).
+- **Want to improve the code?** Feel free to **Fork** this repository and submit a **Pull Request**.
+---
+
+## 🛡️ License, Copyright & Compliance Notices
+
+**All Rights Reserved © 2026 T A Srinivas.**
+
+> **Strict Intellectual Property Notice:** This repository is strictly for portfolio viewing and technical evaluation purposes. **DO NOT COPY, CLONE, FORK, OR REDISTRIBUTE** this source code, architecture, or documentation. Stolen copies or unauthorized forks will be reported immediately for a **GitHub DMCA copyright takedown**.
+
+For corporate licensing, enterprise deployment, or commercial inquiries, please contact **`tasrinivass@gmail.com`**.
+
+* **Lead Architect & Developer:** [Srinivasta](https://github.com/SRINIVASTA)
+
+### 🌐 Let’s Connect
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/srinivas-t-a-557637119/)
+[![Kaggle](https://img.shields.io/badge/Kaggle-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)](https://www.kaggle.com/srinivasta)
+[![Email](https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:tasrinivass@gmail.com)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/srinivasta)
+[![Website](https://img.shields.io/badge/Website-000000?style=for-the-badge&logo=website&logoColor=white)](https://srinivasta.github.io)
